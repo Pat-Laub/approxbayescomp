@@ -18,3 +18,6 @@ To install the packages required for the `abcre` library using [Anaconda](https:
 conda install joblib matplotlib numba numpy psutil scipy
 pip install fastprogress hilbertcurve
 ```
+
+P.S. I have a rough start at a C++ version of this package at the [cppabc](https://github.com/Pat-Laub/cppabc) repository.
+It only handles the specific Geometric-Exponential random sums case, though if you are interested in collaborating to expand this, let me know!
