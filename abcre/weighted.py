@@ -4,7 +4,10 @@ Library to compute weighted quantiles, including the weighted median, of
 numpy arrays.
 """
 import numpy as np
+import numpy.random as rnd
 import matplotlib.pyplot as plt
+import pandas
+from numba import njit
 from numpy.random import default_rng
 from scipy.stats import gaussian_kde
 
@@ -103,7 +106,8 @@ def iqr(data, weights):
 # Extracted from filterpy library
 # https://github.com/rlabbe/filterpy/blob/master/filterpy/monte_carlo/resampling.py
 # NOTE: It crashes if weights doesn't add to one.
-def systematic_resample(rng, weights):
+@njit(nogil=True)
+def systematic_resample(weights):
     """ Performs the systemic resampling algorithm used by particle filters.
 
     This algorithm separates the sample space into N divisions. A single random
@@ -125,9 +129,9 @@ def systematic_resample(rng, weights):
     N = len(weights)
 
     # make N subdivisions, and choose positions with a consistent random offset
-    positions = (rng.random() + np.arange(N)) / N
+    positions = (rnd.random() + np.arange(N)) / N
 
-    indexes = np.zeros(N, "i")
+    indexes = np.zeros(N, np.int64)
     cumulative_sum = np.cumsum(weights)
     i, j = 0, 0
     while i < N:
@@ -140,9 +144,11 @@ def systematic_resample(rng, weights):
 
 
 def resample(rng, weights, repeats=10):
+    if type(weights) == pandas.core.series.Series:
+        weights = weights.to_numpy()
     allIndices = []
     for rep in range(repeats):
-        allIndices.append(systematic_resample(rng, weights))
+        allIndices.append(systematic_resample(weights))
 
     indices = np.concatenate(allIndices)
     return indices
@@ -154,6 +160,8 @@ def resample(rng, weights, repeats=10):
 def resample_and_kde(data, weights, cut=3, clip=(-np.inf, np.inf), seed=1, repeats=10):
     # Resample the data
     rng = default_rng(seed)
+    if type(weights) == pandas.core.series.Series:
+        weights = weights.to_numpy()
     dataResampled = data[resample(rng, weights, repeats=repeats)]
 
     # Choose support for KDE
@@ -191,7 +199,7 @@ def freedman_diaconis_bins(data, weights, maxBins=50):
 # function 'distplot' which works correctly for weighted samples.
 # ###############################################################
 def weighted_distplot(
-    data, weights, ax=None, cut=3, clip=(-np.inf, np.inf), seed=1, repeats=10
+    data, weights, ax=None, cut=3, clip=(-np.inf, np.inf), seed=1, repeats=10, hist=True
 ):
     if not ax:
         ax = plt.gca()
@@ -202,10 +210,11 @@ def weighted_distplot(
     line.remove()
 
     # Plot the histogram
-    rng = default_rng(seed)
-    dataResampled = data[resample(rng, weights, repeats=repeats)]
-    bins = freedman_diaconis_bins(data, weights)
-    ax.hist(dataResampled, bins=bins, color=color, density=True, alpha=0.4)
+    if hist:
+        rng = default_rng(seed)
+        dataResampled = data[resample(rng, weights, repeats=repeats)]
+        bins = freedman_diaconis_bins(data, weights)
+        ax.hist(dataResampled, bins=bins, color=color, density=True, alpha=0.4)
 
     # Choose support for KDE
     neff = 1 / sum(weights ** 2)

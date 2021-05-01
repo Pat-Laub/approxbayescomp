@@ -5,13 +5,22 @@
 import numpy as np
 import numpy.random as rnd
 import scipy.stats as st
+from numba import njit
+
+
+@njit()
+def uniform_prior_pdf(theta, lower, upper, normConst):
+    for i in range(len(theta)):
+        if theta[i] <= lower[i] or theta[i] >= upper[i]:
+            return 0
+    return normConst
 
 
 class IndependentUniformPrior(object):
     def __init__(self, bounds, names=None):
         self.dim = len(bounds)
-        self.lower = np.array([bound[0] for bound in bounds])
-        self.upper = np.array([bound[1] for bound in bounds])
+        self.lower = np.array([bound[0] for bound in bounds], dtype=np.float64)
+        self.upper = np.array([bound[1] for bound in bounds], dtype=np.float64)
         self.widths = self.upper - self.lower
         self.names = names
         self.normConst = 1.0 / np.prod(self.widths)
@@ -20,7 +29,7 @@ class IndependentUniformPrior(object):
         ]
 
     def pdf(self, theta):
-        return self.normConst * np.all((self.lower < theta) & (theta < self.upper))
+        return uniform_prior_pdf(theta, self.lower, self.upper, self.normConst)
 
     def sample(self, rg):
         return self.lower + self.widths * rg.uniform(size=self.dim)
