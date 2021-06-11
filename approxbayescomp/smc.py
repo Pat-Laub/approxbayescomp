@@ -5,9 +5,15 @@
 import joblib
 import numpy as np
 import numpy.random as rnd
-import pandas
 import psutil
 from numba import njit
+
+try:
+    PANDAS_INSTALLED = False
+    import pandas
+    PANDAS_INSTALLED = True
+except ModuleNotFoundError:
+    pass
 
 @njit()
 def numba_seed(seed):
@@ -410,7 +416,7 @@ def smc(
         T = len(obs)
         numZerosData = np.sum(obs == 0) if matchZeros else -1
 
-        if type(obs) == pandas.core.series.Series:
+        if PANDAS_INSTALLED and type(obs) == pandas.core.series.Series:
             obs = obs.to_numpy()
 
     ssData = sumstats(obs)

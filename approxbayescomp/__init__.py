@@ -1,3 +1,5 @@
+__version__ = "0.1.0"
+
 from .prior import IndependentPrior, IndependentUniformPrior
 from .plot import _plot_results
 from .simulate import simulate_claim_data, simulate_claim_sizes

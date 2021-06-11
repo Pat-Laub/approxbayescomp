@@ -63,7 +63,9 @@ def simulate_claim_sizes(rg, R, sev, theta_sev):
     # sev is a claim sizes disribution to chosen in ("weibull", "lognormal",
     # "gamma")
     # theta_sev corresponds to the parameters of the claim sizes distribution
-    if sev == "weibull":
+    if sev is None or sev == "ones":
+        return np.ones(R)
+    elif sev == "weibull":
         k, scale = theta_sev
         return scale * rg.weibull(k, size=R)
     elif sev == "exponential":

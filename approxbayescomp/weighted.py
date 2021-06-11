@@ -6,11 +6,16 @@ numpy arrays.
 import numpy as np
 import numpy.random as rnd
 import matplotlib.pyplot as plt
-import pandas
 from numba import njit
 from numpy.random import default_rng
 from scipy.stats import gaussian_kde
 
+try:
+    PANDAS_INSTALLED = False
+    import pandas
+    PANDAS_INSTALLED = True
+except ModuleNotFoundError:
+    pass
 
 def quantile_1D(data, weights, quantile):
     """
@@ -144,7 +149,7 @@ def systematic_resample(weights):
 
 
 def resample(rng, weights, repeats=10):
-    if type(weights) == pandas.core.series.Series:
+    if PANDAS_INSTALLED and type(weights) == pandas.core.series.Series:
         weights = weights.to_numpy()
     allIndices = []
     for rep in range(repeats):
@@ -160,7 +165,7 @@ def resample(rng, weights, repeats=10):
 def resample_and_kde(data, weights, cut=3, clip=(-np.inf, np.inf), seed=1, repeats=10):
     # Resample the data
     rng = default_rng(seed)
-    if type(weights) == pandas.core.series.Series:
+    if PANDAS_INSTALLED and type(weights) == pandas.core.series.Series:
         weights = weights.to_numpy()
     dataResampled = data[resample(rng, weights, repeats=repeats)]
 
