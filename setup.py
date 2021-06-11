@@ -22,6 +22,6 @@ setup(
     ],
     packages=["approxbayescomp"],
     include_package_data=True,
-    install_requires=["joblib", "numba", "numpy", "scipy",
-        "psutil", "matplotlib", "fastprogress", "hilbertcurve"],
+    install_requires=["joblib", "numba", "numpy>=1.17", "scipy>=1.4",
+        "psutil", "matplotlib", "fastprogress", "hilbertcurve>=2.0"],
 )
