@@ -1,11 +1,11 @@
-# approxbayescomp, a package for Approximate Bayesian Computation (ABC) for actuaries
+# The Python package 'approxbayescomp' for Approximate Bayesian Computation
 
 To install simply run `pip install approxbayescomp`.
 
 This package is the result of our paper "[Approximate Bayesian Computation to fit and compare insurance loss models](https://arxiv.org/abs/2007.03833)".
-It implements an efficient ABC algorithm -- the sequential Monte Carlo (SMC) algorithm -- and is targeted towards insurance problems, though it is easily adapted to other situations.
+It implements an efficient ABC algorithm -- the sequential Monte Carlo (SMC) algorithm -- and is targeted towards insurance problems (specifically, fitting loss distributions), though it is easily adapted to other situations.
 
-For example, imagine we have an i.i.d. sample of random sums of lognormal variables where the number of summands is Poisson simulated.
+For example, imagine we have an i.i.d. sample of random sums of lognormal variables where the number of summands is Poisson distributed.
 The fit this data we would run:
 
 ```python
@@ -38,5 +38,5 @@ We also aimed to have total reproducibility, so for any given seed value the res
 Our main dependencies are joblib, numba, numpy, and scipy.
 The package also uses psutil, matplotlib, fastprogress, and hilbertcurve, though in most cases these can be commented out if it were necessary.
 
-Pat has a rough start at a C++ version of this package at the [cppabc](https://github.com/Pat-Laub/cppabc) repository.
+Patrick has a rough start at a C++ version of this package at the [cppabc](https://github.com/Pat-Laub/cppabc) repository.
 It only handles the specific Geometric-Exponential random sums case, though if you are interested in collaborating to expand this, let him know!
