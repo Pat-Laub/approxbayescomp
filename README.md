@@ -1,7 +1,30 @@
 # approxbayescomp, a package for Approximate Bayesian Computation (ABC) for actuaries
 
+To install simply run `pip install approxbayescomp`.
+
 This package is the result of our paper "[Approximate Bayesian Computation to fit and compare insurance loss models](https://arxiv.org/abs/2007.03833)".
 It implements an efficient ABC algorithm -- the sequential Monte Carlo (SMC) algorithm -- and is targeted towards insurance problems, though it is easily adapted to other situations.
+
+For example, imagine we have an i.i.d. sample of random sums of lognormal variables where the number of summands is Poisson simulated.
+The fit this data we would run:
+
+```python
+import approxbayescomp as abc
+
+# Load data to fit
+obsData = ...
+
+# Frequency-Loss Model
+freq = "poisson"
+sev = "lognormal"
+psi = abc.Psi("sum") # Aggregation process
+
+# Fit the model to the data using ABC
+prior = abc.IndependentUniformPrior([(0, 100), (-5, 5), (0, 3)])
+model = abc.Model(freq, sev, psi, prior)
+fit = abc.smc(numIters, popSize, obsData, model)
+```
+
 For a description of the aims and methodology of ABC check out our paper, it is written with ABC newcomers in mind.
 For examples of this package in use, check out the Jupyter notebooks in our [online supplement repository](https://github.com/LaGauffre/ABCFitLoMo) for the paper.
 
@@ -15,5 +38,5 @@ We also aimed to have total reproducibility, so for any given seed value the res
 Our main dependencies are joblib, numba, numpy, and scipy.
 The package also uses psutil, matplotlib, fastprogress, and hilbertcurve, though in most cases these can be commented out if it were necessary.
 
-P.S. I have a rough start at a C++ version of this package at the [cppabc](https://github.com/Pat-Laub/cppabc) repository.
-It only handles the specific Geometric-Exponential random sums case, though if you are interested in collaborating to expand this, let me know!
+Pat has a rough start at a C++ version of this package at the [cppabc](https://github.com/Pat-Laub/cppabc) repository.
+It only handles the specific Geometric-Exponential random sums case, though if you are interested in collaborating to expand this, let him know!
