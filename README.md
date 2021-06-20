@@ -1,9 +1,12 @@
-# The Python package 'approxbayescomp' for Approximate Bayesian Computation
+# _approxbayescomp_ Python package for ABC
 
-To install simply run `pip install approxbayescomp`.
+This package implements an efficient Approximate Bayesian Computation (ABC) algorithm - the sequential Monte Carlo (SMC) algorithm. It is targeted towards insurance problems (specifically, fitting loss distributions), though it is easily adapted to other situations.
 
-This package is the result of our paper "[Approximate Bayesian Computation to fit and compare insurance loss models](https://arxiv.org/abs/2007.03833)".
-It implements an efficient ABC algorithm -- the sequential Monte Carlo (SMC) algorithm -- and is targeted towards insurance problems (specifically, fitting loss distributions), though it is easily adapted to other situations.
+For a brief video overview of the package, see our 7 min lightning talk at the Insurance Data Science conference:
+
+[![ABC Talk at Insurance Data Science conference](https://raw.githubusercontent.com/Pat-Laub/approxbayescomp/master/ids-screenshot.png)](https://www.youtube.com/watch?v=EtZdCWoFMBA)
+
+This package is the result of our paper "[Approximate Bayesian Computation to fit and compare insurance loss models](https://arxiv.org/abs/2007.03833)". To install simply run `pip install approxbayescomp`.
 
 For example, imagine we have an i.i.d. sample of random sums of lognormal variables where the number of summands is Poisson distributed.
 The fit this data we would run:
