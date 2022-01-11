@@ -31,6 +31,9 @@ Psi = namedtuple("Psi", ["name", "param"], defaults=["sum", 0.0])
 Model = namedtuple(
     "Model", ["freq", "sev", "psi", "prior", "obsFreqs"], defaults=["ones", None, None, None, None]
 )
+
+SimulationModel = namedtuple("SimulationModel", ["simulator", "prior"])
+
 Fit = namedtuple("Fit", ["models", "weights", "samples", "dists"])
 
 # Currently it's difficult to get numba to compile a whole class, and in particular
@@ -148,14 +151,17 @@ def _sample_one_first_iteration(
     model = models[m]
     theta = uniform_sampler(model.prior.lower, model.prior.width)
 
-    claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta) #, obsFreqs
-    if type(model.freq) == str and model.freq.startswith("bivariate"):
-        xFake1 = _compute_psi(claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param)
-        xFake2 = _compute_psi(claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param)
-        
-        xFake = np.vstack([xFake1, xFake2]).T
+    if type(model) == Model:
+        claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta) #, obsFreqs
+        if type(model.freq) == str and model.freq.startswith("bivariate"):
+            xFake1 = _compute_psi(claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param)
+            xFake2 = _compute_psi(claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param)
+            
+            xFake = np.vstack([xFake1, xFake2]).T
+        else:
+            xFake = _compute_psi(claimsFake[0], claimsFake[1], model.psi.name, model.psi.param)
     else:
-        xFake = _compute_psi(claimsFake[0], claimsFake[1], model.psi.name, model.psi.param)
+        xFake = model.simulator(rg, T, theta)
 
     dist = distance(ssData, sumstats(xFake))
 
@@ -215,20 +221,26 @@ def _sample_one(
         if priorVal <= 0:
             continue
 
-        claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta)
-        if type(model.freq) == str and model.freq.startswith("bivariate"):
-            xFake1 = _compute_psi(claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param)
-            if not num_zeros_match(numZerosData[0], xFake1):
-                continue
+        if type(model) == Model:
+            claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta)
+            if type(model.freq) == str and model.freq.startswith("bivariate"):
+                xFake1 = _compute_psi(claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param)
+                if not num_zeros_match(numZerosData[0], xFake1):
+                    continue
 
-            xFake2 = _compute_psi(claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param)
-            if not num_zeros_match(numZerosData[1], xFake2):
-                continue
+                xFake2 = _compute_psi(claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param)
+                if not num_zeros_match(numZerosData[1], xFake2):
+                    continue
 
-            xFake = np.vstack([xFake1, xFake2]).T
+                xFake = np.vstack([xFake1, xFake2]).T
+            else:
+                xFake = _compute_psi(claimsFake[0], claimsFake[1], model.psi.name, model.psi.param)
+
+                if not num_zeros_match(numZerosData, xFake):
+                    continue
+
         else:
-            xFake = _compute_psi(claimsFake[0], claimsFake[1], model.psi.name, model.psi.param)
-
+            xFake = model.simulator(rg, T, theta)
             if not num_zeros_match(numZerosData, xFake):
                 continue
 
@@ -400,7 +412,7 @@ def smc(
     recycling=True
 ):
 
-    if type(models) == Model:
+    if type(models) == Model or type(models) == SimulationModel:
         models = [models]
         modelPrior = np.array([1.0])
 
@@ -409,7 +421,7 @@ def smc(
     if not modelPrior:
         modelPrior = np.ones(M) / M
 
-    if type(models[0].freq) == str and models[0].freq.startswith("bivariate"):
+    if type(models[0]) == Model and type(models[0].freq) == str and models[0].freq.startswith("bivariate"):
         T = obs.shape[0]
         numZerosData = (np.sum(obs[:,0] == 0), np.sum(obs[:,1] == 0)) if matchZeros else (-1, -1)
     else:
@@ -440,16 +452,18 @@ def smc(
 
     newModels = []
     for model, newPrior in zip(models, newPriors):
-        if model.psi:
-            newPsi = model.psi
+        if type(model) == Model:
+            if model.psi:
+                newPsi = model.psi
+            else:
+                newPsi = Psi("severities")
+            newModel = Model(model.freq, model.sev, newPsi, newPrior)
         else:
-            newPsi = Psi("severities")
-
-        newModel = Model(model.freq, model.sev, newPsi, newPrior)
+            newModel = SimulationModel(model.simulator, newPrior)
         newModels.append(newModel)
     
     models = tuple(newModels)
-
+    
     sg = SeedSequence(seed)
 
     mb = master_bar(range(0, numIters + 1))
