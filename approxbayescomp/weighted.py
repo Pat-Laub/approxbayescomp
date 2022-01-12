@@ -3,9 +3,9 @@
 Library to compute weighted quantiles, including the weighted median, of
 numpy arrays.
 """
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.random as rnd
-import matplotlib.pyplot as plt
 from numba import njit
 from numpy.random import default_rng
 from scipy.stats import gaussian_kde
@@ -13,9 +13,11 @@ from scipy.stats import gaussian_kde
 try:
     PANDAS_INSTALLED = False
     import pandas
+
     PANDAS_INSTALLED = True
 except ModuleNotFoundError:
     pass
+
 
 def quantile_1D(data, weights, quantile):
     """
@@ -72,7 +74,7 @@ def quantile(data, weights, quantile):
     data : ndarray
         Input array.
     weights : ndarray
-        Array with the weights. It must have the same size of the last 
+        Array with the weights. It must have the same size of the last
         axis of `data`.
     quantile : float
         Quantile to compute. It must have a value between 0 and 1.
@@ -113,7 +115,7 @@ def iqr(data, weights):
 # NOTE: It crashes if weights doesn't add to one.
 @njit(nogil=True)
 def systematic_resample(weights):
-    """ Performs the systemic resampling algorithm used by particle filters.
+    """Performs the systemic resampling algorithm used by particle filters.
 
     This algorithm separates the sample space into N divisions. A single random
     offset is used to to choose where to sample from for all divisions. This

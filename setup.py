@@ -1,4 +1,5 @@
 import pathlib
+
 from setuptools import setup
 
 HERE = pathlib.Path(__file__).parent
@@ -22,6 +23,14 @@ setup(
     ],
     packages=["approxbayescomp"],
     include_package_data=True,
-    install_requires=["joblib", "numba", "numpy>=1.17", "scipy>=1.4",
-        "psutil", "matplotlib", "fastprogress", "hilbertcurve>=2.0"],
+    install_requires=[
+        "joblib",
+        "numba",
+        "numpy>=1.17",
+        "scipy>=1.4",
+        "psutil",
+        "matplotlib",
+        "fastprogress",
+        "hilbertcurve>=2.0",
+    ],
 )

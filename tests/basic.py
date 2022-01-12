@@ -1,6 +1,8 @@
-import approxbayescomp as abc
 import numpy as np
 import numpy.random as rnd
+
+import approxbayescomp as abc
+
 numIters = 5
 numItersData = 10
 popSize = 500
@@ -13,7 +15,7 @@ epsMin = 1
 
 sev = "frequency dependent exponential"
 freq = "poisson"
-psi = abc.Psi("sum") # Aggregation process
+psi = abc.Psi("sum")  # Aggregation process
 
 # Simulate some data to fit
 sample_sizes = [50, 250]

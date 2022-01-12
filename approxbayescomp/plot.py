@@ -9,6 +9,7 @@ from scipy.stats import gaussian_kde
 
 from .weighted import weighted_distplot
 
+
 ################################################################
 # This was the first function I wrote to show the results of an
 # ABC-SMC fit. It zooms out to show the entire prior distribution

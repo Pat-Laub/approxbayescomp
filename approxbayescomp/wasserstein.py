@@ -1,8 +1,9 @@
 import numpy as np
-from numba import njit
-from scipy.spatial.distance import cdist
-from scipy.optimize import linear_sum_assignment
 from hilbertcurve.hilbertcurve import HilbertCurve
+from numba import njit
+from scipy.optimize import linear_sum_assignment
+from scipy.spatial.distance import cdist
+
 
 @njit(nogil=True)
 def wass_sumstats(x):
@@ -17,7 +18,7 @@ def wass_dist(sortedData, sortedFake, p=1.0):
 
 @njit(nogil=True)
 def identity(x):
-    return x 
+    return x
 
 
 def wrap_ss_curve_matching_approx(scale_x, scale_t):
@@ -56,7 +57,7 @@ def wass_2Ddist_approx(ssData, ssFake):
     hilbert_curve = HilbertCurve(k, 2)
     permut = np.argsort(hilbert_curve.distances_from_points(ssData.astype(int)))
     permutFake = np.argsort(hilbert_curve.distances_from_points(ssFake.astype(int)))
-    
+
     diff = ssData[permut, :] - ssFake[permutFake, :]
     sqrtSumSqrs = np.sqrt(np.sum(diff ** 2, axis=1))
     dist = np.mean(sqrtSumSqrs)

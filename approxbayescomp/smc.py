@@ -2,34 +2,43 @@
 """
 @author: Pat and Pierre-O
 """
+from collections import namedtuple
+from time import time
+
 import joblib
 import numpy as np
 import numpy.random as rnd
 import psutil
+from fastprogress.fastprogress import master_bar, progress_bar
 from numba import njit
+from numpy.random import SeedSequence, default_rng
+from scipy.stats import gaussian_kde
+
+from .plot import _plot_results
+from .simulate import sample_discrete_dist, sim_multivariate_normal, simulate_claim_data
+from .wasserstein import wass_dist, wass_sumstats
+from .weighted import quantile, systematic_resample
 
 try:
     PANDAS_INSTALLED = False
     import pandas
+
     PANDAS_INSTALLED = True
 except ModuleNotFoundError:
     pass
+
 
 @njit()
 def numba_seed(seed):
     rnd.seed(seed)
 
-from numpy.random import SeedSequence, default_rng
-from time import time
-from fastprogress.fastprogress import master_bar, progress_bar
-from scipy.stats import gaussian_kde
-
-from collections import namedtuple
 
 Psi = namedtuple("Psi", ["name", "param"], defaults=["sum", 0.0])
 
 Model = namedtuple(
-    "Model", ["freq", "sev", "psi", "prior", "obsFreqs"], defaults=["ones", None, None, None, None]
+    "Model",
+    ["freq", "sev", "psi", "prior", "obsFreqs"],
+    defaults=["ones", None, None, None, None],
 )
 
 SimulationModel = namedtuple("SimulationModel", ["simulator", "prior"])
@@ -47,17 +56,14 @@ SimpleKDE = namedtuple(
     "KDE", ["dataset", "weights", "d", "n", "inv_cov", "L", "log_det"]
 )
 
-from .simulate import simulate_claim_data, sample_discrete_dist, sim_multivariate_normal
-from .weighted import quantile, systematic_resample
-from .plot import _plot_results
-from .wasserstein import wass_sumstats, wass_dist
-
 
 def kde(data, weights, bw=np.sqrt(2)):
     return gaussian_kde(data.T, weights=weights, bw_method=bw)
 
+
 def compute_psi(freqs, sevs, psi):
     return _compute_psi(freqs, sevs, psi.name, psi.param)
+
 
 @njit(nogil=True)
 def _compute_psi(freqs, sevs, psi_name, psi_param):
@@ -104,6 +110,7 @@ def uniform_sampler(lower, width):
         theta[i] = lower[i] + width[i] * rnd.random()
     return theta
 
+
 @njit(nogil=True)
 def gaussian_kde_logpdf(x, d, n, dataset, weights, inv_cov, log_det):
     """
@@ -121,23 +128,25 @@ def gaussian_kde_logpdf(x, d, n, dataset, weights, inv_cov, log_det):
     log_to_sum = 2.0 * np.log(weights) - log_det - energy
     return np.log(np.sum(np.exp(0.5 * log_to_sum)))
 
+
 def index_generator(rg, weights):
     N = len(weights)
     inds = range(N)
     uniform = len(set(weights)) == 1
-    
+
     while True:
         # Generate a sample of length N from weights
         # distribution using systematic resampling.
         if not uniform:
             inds = systematic_resample(weights)
-            
+
         # As the previous sample is sorted, randomly choose
         # to start somewhere in the middle of the sequence.
-        start = rg.choice(N) 
-        
+        start = rg.choice(N)
+
         for i in range(N):
             yield inds[(start + i) % N]
+
 
 def _sample_one_first_iteration(
     seed, models, modelPrior, sumstats, distance, ssData, T
@@ -152,20 +161,29 @@ def _sample_one_first_iteration(
     theta = uniform_sampler(model.prior.lower, model.prior.width)
 
     if type(model) == Model:
-        claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta) #, obsFreqs
+        claimsFake = simulate_claim_data(
+            rg, T, model.freq, model.sev, theta
+        )  # , obsFreqs
         if type(model.freq) == str and model.freq.startswith("bivariate"):
-            xFake1 = _compute_psi(claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param)
-            xFake2 = _compute_psi(claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param)
-            
+            xFake1 = _compute_psi(
+                claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param
+            )
+            xFake2 = _compute_psi(
+                claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param
+            )
+
             xFake = np.vstack([xFake1, xFake2]).T
         else:
-            xFake = _compute_psi(claimsFake[0], claimsFake[1], model.psi.name, model.psi.param)
+            xFake = _compute_psi(
+                claimsFake[0], claimsFake[1], model.psi.name, model.psi.param
+            )
     else:
         xFake = model.simulator(rg, T, theta)
 
     dist = distance(ssData, sumstats(xFake))
 
     return m, theta, 1.0, dist, 1
+
 
 @njit(nogil=True)
 def num_zeros_match(numZerosData, xFake):
@@ -174,12 +192,23 @@ def num_zeros_match(numZerosData, xFake):
         for xFake_i in xFake:
             if xFake_i == 0:
                 numZerosFake += 1
-        
+
         return numZerosData == numZerosFake
     return True
 
+
 def _sample_one(
-    seed, models, modelPrior, kdes, sumstats, distance, eps, numZerosData, ssData, T, systematic=False
+    seed,
+    models,
+    modelPrior,
+    kdes,
+    sumstats,
+    distance,
+    eps,
+    numZerosData,
+    ssData,
+    T,
+    systematic=False,
 ):
     rg = default_rng(seed)
     numba_seed(seed)
@@ -203,7 +232,6 @@ def _sample_one(
         if K is None:
             continue
 
-
         if not systematic:
             i = sample_discrete_dist(K.weights)
         else:
@@ -224,17 +252,23 @@ def _sample_one(
         if type(model) == Model:
             claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta)
             if type(model.freq) == str and model.freq.startswith("bivariate"):
-                xFake1 = _compute_psi(claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param)
+                xFake1 = _compute_psi(
+                    claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param
+                )
                 if not num_zeros_match(numZerosData[0], xFake1):
                     continue
 
-                xFake2 = _compute_psi(claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param)
+                xFake2 = _compute_psi(
+                    claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param
+                )
                 if not num_zeros_match(numZerosData[1], xFake2):
                     continue
 
                 xFake = np.vstack([xFake1, xFake2]).T
             else:
-                xFake = _compute_psi(claimsFake[0], claimsFake[1], model.psi.name, model.psi.param)
+                xFake = _compute_psi(
+                    claimsFake[0], claimsFake[1], model.psi.name, model.psi.param
+                )
 
                 if not num_zeros_match(numZerosData, xFake):
                     continue
@@ -296,7 +330,13 @@ def sample_population(
     if t == 0:
         results = parallel(
             sample_first_iteration(
-                seed, models, modelPrior, sumstats, distance, ssData, T,
+                seed,
+                models,
+                modelPrior,
+                sumstats,
+                distance,
+                ssData,
+                T,
             )
             for seed in progress_bar(seeds, parent=mb, total=n)
         )
@@ -314,7 +354,7 @@ def sample_population(
                 numZerosData,
                 ssData,
                 T,
-                systematic
+                systematic,
             )
             for seed in progress_bar(seeds, parent=mb, total=n)
         )
@@ -371,6 +411,7 @@ def fit_all_kdes(ms, samples, weights, M):
 
     return tuple(simpleKDEs)
 
+
 def calculate_ess(M, ms, weights):
     # Calculate effective sample size for each model
     if M == 1:
@@ -380,8 +421,7 @@ def calculate_ess(M, ms, weights):
         for m in range(M):
             if (ms == m).sum() > 0:
                 ESS.append(
-                    np.sum(weights[ms == m]) ** 2
-                    / np.sum(weights[ms == m] ** 2)
+                    np.sum(weights[ms == m]) ** 2 / np.sum(weights[ms == m] ** 2)
                 )
             else:
                 ESS.append(0)
@@ -409,7 +449,7 @@ def smc(
     verbose=False,
     matchZeros=False,
     systematic=False,
-    recycling=True
+    recycling=True,
 ):
 
     if type(models) == Model or type(models) == SimulationModel:
@@ -421,9 +461,15 @@ def smc(
     if not modelPrior:
         modelPrior = np.ones(M) / M
 
-    if type(models[0]) == Model and type(models[0].freq) == str and models[0].freq.startswith("bivariate"):
+    if (
+        type(models[0]) == Model
+        and type(models[0].freq) == str
+        and models[0].freq.startswith("bivariate")
+    ):
         T = obs.shape[0]
-        numZerosData = (np.sum(obs[:,0] == 0), np.sum(obs[:,1] == 0)) if matchZeros else (-1, -1)
+        numZerosData = (
+            (np.sum(obs[:, 0] == 0), np.sum(obs[:, 1] == 0)) if matchZeros else (-1, -1)
+        )
     else:
         T = len(obs)
         numZerosData = np.sum(obs == 0) if matchZeros else -1
@@ -461,9 +507,9 @@ def smc(
         else:
             newModel = SimulationModel(model.simulator, newPrior)
         newModels.append(newModel)
-    
+
     models = tuple(newModels)
-    
+
     sg = SeedSequence(seed)
 
     mb = master_bar(range(0, numIters + 1))
@@ -477,9 +523,7 @@ def smc(
     eps = np.inf
     kdes = None
 
-    with joblib.Parallel(
-        n_jobs=numProcs #, timeout=timeout
-    ) as parallel:
+    with joblib.Parallel(n_jobs=numProcs) as parallel:  # , timeout=timeout
         for t in mb:
             if eps <= epsMin:
                 if verbose:
@@ -511,7 +555,7 @@ def smc(
             newSamples = np.vstack(newSamples)
 
             # Combine the previous generation with this one.
-            if recycling and t > 0:                
+            if recycling and t > 0:
                 ms = np.concatenate([oldMs, newMs])
                 weights = np.concatenate([oldWeights, newWeights])
                 weights /= np.sum(weights)
@@ -524,7 +568,7 @@ def smc(
                 dists = newDists
 
             # Store this generation to be recycled in the next one.
-            if recycling:                
+            if recycling:
                 oldMs = newMs
                 oldWeights = newWeights
                 oldSamples = newSamples
@@ -545,8 +589,8 @@ def smc(
                         break
 
                     eps = dists[ind]
-                    
-                    weights /= (1 - weights[ind])
+
+                    weights /= 1 - weights[ind]
                     weights[ind] = 0
 
                     ESS = calculate_ess(M, ms, weights)
@@ -561,12 +605,11 @@ def smc(
                     while len(ms) > popSize:
                         argmax = np.argmax(dists)
                         ms = np.delete(ms, argmax)
-                        weights = np.delete(weights, argmax) 
+                        weights = np.delete(weights, argmax)
                         samples = np.delete(samples, argmax, axis=0)
                         dists = np.delete(dists, argmax)
 
                     weights /= np.sum(weights)
-
 
             # Also, if not finished SMC iterations, throw away models
             # which only have a couple of samples. These will just crash
@@ -582,7 +625,7 @@ def smc(
                         weights = weights[ms != m]
                         weights /= np.sum(weights)
                         ms = ms[ms != m]
-                        
+
                 kdes = fit_all_kdes(ms, samples, weights, M)
 
             modelPopulations = [np.sum(ms == m) for m in range(M)]
