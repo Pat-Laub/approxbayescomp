@@ -1,6 +1,5 @@
 __version__ = "0.1.0"
 
-from .plot import _plot_results
 from .prior import IndependentPrior, IndependentUniformPrior
 from .simulate import simulate_claim_data, simulate_claim_sizes
 from .smc import Fit, Model, Psi, SimulationModel, compute_psi, smc

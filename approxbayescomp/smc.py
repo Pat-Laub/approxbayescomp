@@ -16,7 +16,7 @@ from scipy.stats import gaussian_kde
 
 from .simulate import sample_discrete_dist, sim_multivariate_normal, simulate_claim_data
 from .wasserstein import wass_dist, wass_sumstats
-from .weighted import quantile, systematic_resample
+from .weighted import systematic_resample
 
 try:
     PANDAS_INSTALLED = False
@@ -424,7 +424,7 @@ def calculate_ess(M, ms, weights):
             else:
                 ESS.append(0)
 
-    return np.round(ESS).astype(np.int)
+    return np.round(ESS).astype(int)
 
 
 def smc_setup(

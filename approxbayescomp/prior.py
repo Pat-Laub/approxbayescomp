@@ -3,7 +3,6 @@
 @author: Pat and Pierre-O
 """
 import numpy as np
-import numpy.random as rnd
 import scipy.stats as st
 from numba import njit
 

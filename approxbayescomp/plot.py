@@ -4,7 +4,7 @@
 """
 import matplotlib.pyplot as plt
 import numpy as np
-from numpy.random import choice, default_rng
+from numpy.random import choice
 from scipy.stats import gaussian_kde
 
 from .weighted import weighted_distplot
