@@ -14,6 +14,8 @@ Soon, it will be possible to install using `conda`; at that point the preferred 
 
 ```conda install approxbayescomp```
 
+The source code for the package is available on [Github](https://github.com/Pat-Laub/approxbayescomp).
+
 ## Example
 
 For example, imagine we have an i.i.d. sample of random sums of lognormal variables where the number of summands is Poisson distributed.
