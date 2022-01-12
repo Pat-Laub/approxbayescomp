@@ -4,7 +4,7 @@ This package implements an efficient Approximate Bayesian Computation (ABC) algo
 
 For a brief video overview of the package, see our 7 min lightning talk at the Insurance Data Science conference:
 
-[![ABC Talk at Insurance Data Science conference](https://raw.githubusercontent.com/Pat-Laub/approxbayescomp/master/ids-screenshot.png)](https://www.youtube.com/watch?v=EtZdCWoFMBA)
+[![ABC Talk at Insurance Data Science conference](https://raw.githubusercontent.com/Pat-Laub/approxbayescomp/master/docs/ids-screenshot.png)](https://www.youtube.com/watch?v=EtZdCWoFMBA)
 
 This package is the result of our paper "[Approximate Bayesian Computation to fit and compare insurance loss models](https://arxiv.org/abs/2007.03833)". To install simply run `pip install approxbayescomp`.
 

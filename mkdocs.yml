@@ -1,0 +1,28 @@
+site_name: approxbayescomp
+
+nav:
+  - Home: index.md
+
+theme:
+  name: material
+
+  palette:
+    primary: teal
+    accent: teal
+
+  font:
+    text: Alegreya Sans
+
+  hljs_languages:
+    - python
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.details
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - attr_list
+  - md_in_html
