@@ -14,7 +14,6 @@ from numba import njit
 from numpy.random import SeedSequence, default_rng
 from scipy.stats import gaussian_kde
 
-from .plot import _plot_results
 from .simulate import sample_discrete_dist, sim_multivariate_normal, simulate_claim_data
 from .wasserstein import wass_dist, wass_sumstats
 from .weighted import quantile, systematic_resample
@@ -313,7 +312,6 @@ def sample_population(
     numZerosData,
     ssData,
     T,
-    numProcs,
     mb,
     systematic=False,
 ):
@@ -429,27 +427,13 @@ def calculate_ess(M, ms, weights):
     return np.round(ESS).astype(np.int)
 
 
-def smc(
-    numIters,
-    popSize,
+def smc_setup(
     obs,
     models,
-    sumstats=wass_sumstats,
-    distance=wass_dist,
-    modelPrior=None,
-    testName="",
-    numProcs=None,
-    quant=0.5,
-    epsMin=0,
-    saveIters=False,
-    plotResults=False,
-    thetaTrue=None,
-    seed=1,
-    timeout=30,
-    verbose=False,
-    matchZeros=False,
-    systematic=False,
-    recycling=True,
+    sumstats,
+    modelPrior,
+    numProcs,
+    matchZeros,
 ):
 
     if type(models) == Model or type(models) == SimulationModel:
@@ -510,6 +494,133 @@ def smc(
 
     models = tuple(newModels)
 
+    return T, M, models, modelPrior, numProcs, numSumStats, numZerosData, ssData
+
+
+def prepare_next_population(
+    numIters,
+    popSize,
+    recycling,
+    verbose,
+    saveIters,
+    M,
+    mb,
+    t,
+    eps,
+    ms,
+    weights,
+    samples,
+    dists,
+    numSims,
+    elapsed,
+):
+
+    ESS0 = calculate_ess(M, ms, weights)
+
+    # If we're not finished with the SMC iterations, throw
+    # away enough particles to reduce the ESS to a target level.
+    # This is done by decreasing epsilon for the next iteration.
+    if t < numIters:
+        ESS = calculate_ess(M, ms, weights)
+
+        # Go through each particle, starting at the furthest
+        # ones from the observed data.
+        for ind in reversed(np.argsort(dists)):
+            if np.sum(ESS) <= popSize / 2:
+                break
+
+            eps = dists[ind]
+
+            weights /= 1 - weights[ind]
+            weights[ind] = 0
+
+            ESS = calculate_ess(M, ms, weights)
+
+        ms = ms[weights > 0]
+        samples = samples[weights > 0, :]
+        dists = dists[weights > 0]
+        weights = weights[weights > 0]
+        weights /= np.sum(weights)
+    else:
+        if recycling:
+            while len(ms) > popSize:
+                argmax = np.argmax(dists)
+                ms = np.delete(ms, argmax)
+                weights = np.delete(weights, argmax)
+                samples = np.delete(samples, argmax, axis=0)
+                dists = np.delete(dists, argmax)
+
+            weights /= np.sum(weights)
+
+    # Also, if not finished SMC iterations, throw away models
+    # which only have a couple of samples. These will just crash
+    # the KDE function.
+    modelPopulations = [np.sum(ms == m) for m in range(M)]
+    modelWeights = np.array([np.sum(weights[ms == m]) for m in range(M)])
+    modelWeights /= np.sum(modelWeights)
+    if t < numIters:
+        for m in range(M):
+            if modelPopulations[m] < 5 or modelWeights[m] == 0:
+                samples = samples[ms != m, :]
+                dists = dists[ms != m]
+                weights = weights[ms != m]
+                weights /= np.sum(weights)
+                ms = ms[ms != m]
+
+        kdes = fit_all_kdes(ms, samples, weights, M)
+    else:
+        # As we're finishing up, we won't need another set of KDEs
+        kdes = None
+
+    modelPopulations = [np.sum(ms == m) for m in range(M)]
+    modelWeights = [np.sum(weights[ms == m]) for m in range(M)]
+    modelWeights = np.round(np.array(modelWeights) / np.sum(modelWeights), 2)
+
+    if verbose:
+        ESS = calculate_ess(M, ms, weights)
+        update = f"Finished iteration {t}, eps = {eps:.2f}, "
+        elapsedMins = np.round(elapsed / 60, 1)
+        update += f"time = {np.round(elapsed)}s / {elapsedMins}m, "
+        update += f"ESS = {ESS0} -> {ESS}, numSims = {numSims}"
+        if M > 1:
+            update += f"\n\tmodel populations = {modelPopulations}, "
+            update += f"model weights = {modelWeights}"
+        mb.write(update)
+
+    if saveIters:
+        np.savetxt(f"smc-samples-{t:02}.txt", samples)
+        np.savetxt(f"smc-weights-{t:02}.txt", weights)
+        np.savetxt(f"smc-dists-{t:02}.txt", dists)
+
+    return eps, kdes, ms, samples, dists, weights, ESS
+
+
+def smc(
+    numIters,
+    popSize,
+    obs,
+    models,
+    sumstats=wass_sumstats,
+    distance=wass_dist,
+    modelPrior=None,
+    numProcs=None,
+    epsMin=0,
+    saveIters=False,
+    seed=1,
+    verbose=False,
+    matchZeros=False,
+    recycling=True,
+):
+
+    T, M, models, modelPrior, numProcs, numSumStats, numZerosData, ssData = smc_setup(
+        obs,
+        models,
+        sumstats,
+        modelPrior,
+        numProcs,
+        matchZeros,
+    )
+
     sg = SeedSequence(seed)
 
     mb = master_bar(range(0, numIters + 1))
@@ -522,6 +633,10 @@ def smc(
 
     eps = np.inf
     kdes = None
+
+    # To keep the linter happy, declare some variables as None temporarily
+    if recycling:
+        oldMs = oldWeights = oldSamples = oldDists = None
 
     with joblib.Parallel(n_jobs=numProcs) as parallel:  # , timeout=timeout
         for t in mb:
@@ -546,7 +661,6 @@ def smc(
                 numZerosData,
                 ssData,
                 T,
-                numProcs,
                 mb,
             )
 
@@ -574,85 +688,23 @@ def smc(
                 oldSamples = newSamples
                 oldDists = newDists
 
-            ESS0 = calculate_ess(M, ms, weights)
-
-            # If we're not finished with the SMC iterations, throw
-            # away enough particles to reduce the ESS to a target level.
-            # This is done by decreasing epsilon for the next iteration.
-            if t < numIters:
-                ESS = calculate_ess(M, ms, weights)
-
-                # Go through each particle, starting at the furthest
-                # ones from the observed data.
-                for ind in reversed(np.argsort(dists)):
-                    if np.sum(ESS) <= popSize / 2:
-                        break
-
-                    eps = dists[ind]
-
-                    weights /= 1 - weights[ind]
-                    weights[ind] = 0
-
-                    ESS = calculate_ess(M, ms, weights)
-
-                ms = ms[weights > 0]
-                samples = samples[weights > 0, :]
-                dists = dists[weights > 0]
-                weights = weights[weights > 0]
-                weights /= np.sum(weights)
-            else:
-                if recycling:
-                    while len(ms) > popSize:
-                        argmax = np.argmax(dists)
-                        ms = np.delete(ms, argmax)
-                        weights = np.delete(weights, argmax)
-                        samples = np.delete(samples, argmax, axis=0)
-                        dists = np.delete(dists, argmax)
-
-                    weights /= np.sum(weights)
-
-            # Also, if not finished SMC iterations, throw away models
-            # which only have a couple of samples. These will just crash
-            # the KDE function.
-            modelPopulations = [np.sum(ms == m) for m in range(M)]
-            modelWeights = np.array([np.sum(weights[ms == m]) for m in range(M)])
-            modelWeights /= np.sum(modelWeights)
-            if t < numIters:
-                for m in range(M):
-                    if modelPopulations[m] < 5 or modelWeights[m] == 0:
-                        samples = samples[ms != m, :]
-                        dists = dists[ms != m]
-                        weights = weights[ms != m]
-                        weights /= np.sum(weights)
-                        ms = ms[ms != m]
-
-                kdes = fit_all_kdes(ms, samples, weights, M)
-
-            modelPopulations = [np.sum(ms == m) for m in range(M)]
-            modelWeights = [np.sum(weights[ms == m]) for m in range(M)]
-            modelWeights = np.round(np.array(modelWeights) / np.sum(modelWeights), 2)
-
-            if verbose:
-                ESS = calculate_ess(M, ms, weights)
-                update = f"Finished iteration {t}, eps = {eps:.2f}, time = {np.round(elapsed)}s / {np.round(elapsed / 60, 1)}m, ESS = {ESS0} -> {ESS}, numSims = {numSims}"
-                if M > 1:
-                    update += f"\n\tmodel populations = {modelPopulations}, model weights = {modelWeights}"
-                mb.write(update)
-
-            if saveIters:
-                np.savetxt(f"smc-samples-{t:02}.txt", samples)
-                np.savetxt(f"smc-weights-{t:02}.txt", weights)
-                np.savetxt(f"smc-dists-{t:02}.txt", dists)
-
-            if plotResults:
-                filename = f"{testName}SMC-{t:02}.pdf" if saveIters else ""
-                _plot_results(
-                    samples,
-                    weights,
-                    model.prior,
-                    thetaTrue=thetaTrue,
-                    filename=filename,
-                )
+            eps, kdes, ms, samples, dists, weights, ESS = prepare_next_population(
+                numIters,
+                popSize,
+                recycling,
+                verbose,
+                saveIters,
+                M,
+                mb,
+                t,
+                eps,
+                ms,
+                weights,
+                samples,
+                dists,
+                numSims,
+                elapsed,
+            )
 
     if verbose:
         update = f"Final population dists <= {dists.max():.2f}, ESS = {ESS}"
@@ -660,7 +712,8 @@ def smc(
             modelPopulations = [np.sum(ms == m) for m in range(M)]
             modelWeights = [np.sum(weights[ms == m]) for m in range(M)]
             modelWeights = np.round(np.array(modelWeights) / np.sum(modelWeights), 2)
-            update += f"\n\tmodel populations = {modelPopulations}, model weights = {modelWeights}"
+            update += f"\n\tmodel populations = {modelPopulations}, "
+            update += f"model weights = {modelWeights}"
 
         print(update)
 

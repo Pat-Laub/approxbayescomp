@@ -1,2 +1,4 @@
 junk/*
 *__pycache__*
+approxbayescomp.egg-info*
+build*

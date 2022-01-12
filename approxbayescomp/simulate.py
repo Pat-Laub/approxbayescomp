@@ -145,6 +145,50 @@ def bivariate_poisson(rg, T, theta_cop, theta_freqs):
     return (np.maximum(freqs1, 0), np.maximum(freqs2, 0))
 
 
+def seasonal_poisson(rg, T, a, gamma, c):
+    t = np.arange(T)
+    mus = a * (
+        1
+        + (gamma / (2 * np.pi * c))
+        * (np.cos(2 * np.pi * t * c) - np.cos(2 * np.pi * (t + 1) * c))
+    )
+    freqs = rg.poisson(mus)
+    return freqs
+
+
+def cyclical_poisson(rg, T, a, b, c):
+    t = np.arange(T)
+    mus = (
+        a
+        + b
+        + b
+        * (np.cos(2 * np.pi * t * c) - np.cos(2 * np.pi * (t + 1) * c))
+        / 2
+        / np.pi
+        / c
+    )
+    freqs = rg.poisson(mus)
+    return freqs
+
+
+def ar_poisson(rg, T, a, b, c):
+    lambdas, freqs = [0], [0]
+    for s in range(T):
+        lambdas.append(a + b * lambdas[-1] + c * freqs[-1])
+        freqs.append(rg.poisson(lambdas[-1]))
+    freqs = np.array(freqs)[1:]
+    return freqs
+
+
+def inar(rg, T, a, b):
+    freqs = [0]
+    noise = rg.poisson(b, size=T)
+    for s in range(T):
+        freqs.append(rg.binomial(freqs[-1], a) + noise[s])
+    freqs = np.array(freqs)[1:]
+    return freqs
+
+
 def simulate_claim_data(rg, T, freq, sev, theta):
     # T = integer that corresponds to the number of time period observed
     # freq = claim frequency ditribution to be chosen in ("poisson",
@@ -180,43 +224,19 @@ def simulate_claim_data(rg, T, freq, sev, theta):
     elif freq == "seasonal_poisson":
         a, gamma, c = theta[0:3]
         theta_sev = theta[3:]
-        t = np.arange(T)
-        mus = a * (
-            1
-            + (gamma / (2 * np.pi * c))
-            * (np.cos(2 * np.pi * t * c) - np.cos(2 * np.pi * (t + 1) * c))
-        )
-        freqs = rg.poisson(mus)
+        freqs = seasonal_poisson(rg, T, a, gamma, c)
     elif freq == "cyclical_poisson":
         a, b, c = theta[0:3]
         theta_sev = theta[3:]
-        t = np.arange(T)
-        mus = (
-            a
-            + b
-            + b
-            * (np.cos(2 * np.pi * t * c) - np.cos(2 * np.pi * (t + 1) * c))
-            / 2
-            / np.pi
-            / c
-        )
-        freqs = rg.poisson(mus)
+        freqs = cyclical_poisson(rg, T, a, b, c)
     elif freq == "ar_poisson":
         a, b, c = theta[0:3]
         theta_sev = theta[3:]
-        lambdas, freqs = [0], [0]
-        for s in range(T):
-            lambdas.append(a + b * lambdas[-1] + c * freqs[-1])
-            freqs.append(rg.poisson(lambdas[-1]))
-        freqs = np.array(freqs)[1:]
+        freqs = ar_poisson(rg, T, a, b, c)
     elif freq == "INAR":
         a, b = theta[0:2]
         theta_sev = theta[2:]
-        freqs = [0]
-        noise = rg.poisson(b, size=T)
-        for s in range(T):
-            freqs.append(rg.binomial(freqs[-1], a) + noise[s])
-        freqs = np.array(freqs)[1:]
+        freqs = inar(rg, T, a, b)
     elif freq == "geometric":
         p = theta[0]
         theta_sev = theta[1:]
@@ -226,19 +246,13 @@ def simulate_claim_data(rg, T, freq, sev, theta):
         theta_sev = theta[2:]
         freqs = rg.negative_binomial(a, p, size=T)
     elif freq == "markov modulated poisson":
-
-        p_00 = theta[0]
-        P_00 = theta[1]
-        P_11 = theta[2]
-
-        lambda0 = theta[3]
+        p_00, P_00, P_11, lambda0 = theta[0:4]
         lambda1 = lambda0 + theta[4]
         theta_sev = theta[5:]
 
         chain = two_state_markov_chain(p_00, P_00, P_11, T)
         lambdaChain = (chain == 0) * lambda0 + (chain == 1) * lambda1
         freqs = rg.poisson(lambdaChain)
-
     elif freq == "bivariate copula poisson":
         theta_cop = theta[0]
         theta_freqs = theta[1:3]
@@ -271,9 +285,7 @@ def simulate_claim_data(rg, T, freq, sev, theta):
     # If the total number is way too large, it'll probably be discarded
     # anyway so reduce the size.
     if freqs.sum() > 1e7:
-        while freqs.sum() > 1e7:
-            i = np.argmax(freqs)
-            freqs[i] = 1
+        raise Exception("Trying to simulate way too many summands, try adjusting prior")
 
     if sev == "frequency dependent exponential":
         sevs = np.concatenate(
