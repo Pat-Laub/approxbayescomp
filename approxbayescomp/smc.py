@@ -407,7 +407,7 @@ def smc(
     seed=1,
     timeout=30,
     verbose=False,
-    matchZeros=True,
+    matchZeros=False,
     systematic=False,
     recycling=True
 ):
