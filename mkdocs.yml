@@ -2,6 +2,17 @@ site_name: approxbayescomp
 
 nav:
   - Home: index.md
+  - Examples (WIP):
+      # - Section 2: Section 2.ipynb
+      - Geometric-Exponential Compound Sums: Section 3.1.ipynb
+      # - Model Selection: Section 4.ipynb
+      # - Section 5.1 Part 1: Section 5.1 Part 1.ipynb
+      # - Section 5.1 Part 2: Section 5.1 Part 2.ipynb
+      - Frequency-Dependent Claim Sizes: Section 5.2.ipynb
+      - Multiple Claims Processes: Section 5.3.ipynb
+      - Seasonsal Claim Arrivals: Section 5.4.ipynb
+      - Australian Auto Claims Dataset: Section 6.ipynb
+      - Model Selection: Table 2.ipynb
 
 theme:
   name: material
@@ -16,10 +27,15 @@ theme:
   hljs_languages:
     - python
 
+plugins:
+  - mkdocs-jupyter:
+      execute: False
+      ignore_h1_titles: True
+
 markdown_extensions:
-  - admonition
   - pymdownx.highlight:
       anchor_linenums: true
+  - admonition
   - pymdownx.details
   - pymdownx.inlinehilite
   - pymdownx.snippets
