@@ -3,8 +3,8 @@
 @author: Pat and Pierre-O
 """
 import numpy as np
-import scipy.stats as st
-from numba import njit
+import scipy.stats as st  # type: ignore
+from numba import njit  # type: ignore
 
 
 @njit()

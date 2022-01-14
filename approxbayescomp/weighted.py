@@ -1,4 +1,5 @@
-# Original version from https://github.com/nudomarinero/wquantiles/blob/master/weighted.py
+# Original version from:
+#  https://github.com/nudomarinero/wquantiles/blob/master/weighted.py
 """
 Library to compute weighted quantiles, including the weighted median, of
 numpy arrays.
@@ -6,9 +7,9 @@ numpy arrays.
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.random as rnd
-from numba import njit
+from numba import njit  # type: ignore
 from numpy.random import default_rng
-from scipy.stats import gaussian_kde
+from scipy.stats import gaussian_kde  # type: ignore
 
 try:
     PANDAS_INSTALLED = False

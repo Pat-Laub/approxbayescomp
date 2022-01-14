@@ -5,14 +5,14 @@
 from collections import namedtuple
 from time import time
 
-import joblib
+import joblib  # type: ignore
 import numpy as np
 import numpy.random as rnd
-import psutil
-from fastprogress.fastprogress import master_bar, progress_bar
-from numba import njit
-from numpy.random import SeedSequence, default_rng
-from scipy.stats import gaussian_kde
+import psutil  # type: ignore
+from fastprogress.fastprogress import master_bar, progress_bar  # type: ignore
+from numba import njit  # type: ignore
+from numpy.random import SeedSequence, default_rng  # type: ignore
+from scipy.stats import gaussian_kde  # type: ignore
 
 from .simulate import sample_discrete_dist, sim_multivariate_normal, simulate_claim_data
 from .wasserstein import wass_dist, wass_sumstats
@@ -28,7 +28,7 @@ except ModuleNotFoundError:
 
 
 @njit()
-def numba_seed(seed):
+def numba_seed(seed: int):
     rnd.seed(seed)
 
 
@@ -45,22 +45,22 @@ SimulationModel = namedtuple("SimulationModel", ["simulator", "prior"])
 Fit = namedtuple("Fit", ["models", "weights", "samples", "dists"])
 
 # Currently it's difficult to get numba to compile a whole class, and in particular
-# it can't handle the Prior classes. So, e.g. the 'SimpleIndependentUniformPrior' pulls out
-# the key details from the IndependentUniformPrior class & turns it into a boring
+# it can't handle the Prior classes. So, e.g. the 'SimpleIndependentUniformPrior' pulls
+# out the key details from the IndependentUniformPrior class & turns it into a boring
 # 'bag of data' (named tuple) which numba can handle/compile.
 SimpleIndependentUniformPrior = namedtuple(
-    "Prior", ["lower", "upper", "width", "normConst"]
+    "SimpleIndependentUniformPrior", ["lower", "upper", "width", "normConst"]
 )
 SimpleKDE = namedtuple(
-    "KDE", ["dataset", "weights", "d", "n", "inv_cov", "L", "log_det"]
+    "SimpleKDE", ["dataset", "weights", "d", "n", "inv_cov", "L", "log_det"]
 )
 
 
-def kde(data, weights, bw=np.sqrt(2)):
+def kde(data: np.ndarray, weights: np.ndarray, bw: float = np.sqrt(2)):
     return gaussian_kde(data.T, weights=weights, bw_method=bw)
 
 
-def compute_psi(freqs, sevs, psi):
+def compute_psi(freqs: np.ndarray, sevs: np.ndarray, psi):
     return _compute_psi(freqs, sevs, psi.name, psi.param)
 
 
@@ -586,6 +586,8 @@ def prepare_next_population(
             update += f"\n\tmodel populations = {modelPopulations}, "
             update += f"model weights = {modelWeights}"
         mb.write(update)
+    else:
+        ESS = None
 
     if saveIters:
         np.savetxt(f"smc-samples-{t:02}.txt", samples)

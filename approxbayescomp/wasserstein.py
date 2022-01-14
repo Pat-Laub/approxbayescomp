@@ -1,8 +1,8 @@
 import numpy as np
-from hilbertcurve.hilbertcurve import HilbertCurve
-from numba import njit
-from scipy.optimize import linear_sum_assignment
-from scipy.spatial.distance import cdist
+from hilbertcurve.hilbertcurve import HilbertCurve  # type: ignore
+from numba import njit  # type: ignore
+from scipy.optimize import linear_sum_assignment  # type: ignore
+from scipy.spatial.distance import cdist  # type: ignore
 
 
 @njit(nogil=True)

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import numpy.random as rnd
-from numba import njit
-from scipy import stats
+from numba import njit  # type: ignore
+from scipy import stats  # type: ignore
 
 
 @njit(nogil=True)
@@ -297,10 +297,11 @@ def simulate_claim_data(rg, T, freq, sev, theta):
     return (freqs, sevs)
 
 
-# Below is the version which can be compiled by numba. However these are about 2-3 times slower
-# than the new numpy generators used above. It may be possible to get the generators above to be
-# compiled also, a la https://numpy.org/doc/stable/reference/random/extending.html, but it currently
-# is not fast enough with the current versions.
+# Below is the version which can be compiled by numba. However these are about 2-3 times
+# slower than the new numpy generators used above. It may be possible to get the
+# generators above to be compiled also, a la
+#   https://numpy.org/doc/stable/reference/random/extending.html
+# but it currently is not fast enough with the current versions.
 
 
 @njit(nogil=True)
