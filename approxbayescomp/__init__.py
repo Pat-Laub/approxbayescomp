@@ -11,4 +11,6 @@ from .wasserstein import (
     wass_sumstats,
     wrap_ss_curve_matching,
 )
+from .weighted import median as weighted_median
+from .weighted import quantile as weighted_quantile
 from .weighted import resample, resample_and_kde, weighted_distplot
