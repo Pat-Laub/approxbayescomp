@@ -28,7 +28,6 @@ setup(
         "numba",
         "numpy>=1.17",
         "scipy>=1.4",
-        "psutil",
         "matplotlib",
         "fastprogress",
         "hilbertcurve>=2.0",

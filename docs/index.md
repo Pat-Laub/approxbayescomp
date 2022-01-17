@@ -59,7 +59,7 @@ And we scale to use as many CPU cores available on a machine using `joblib`.
 We also aimed to have total reproducibility, so for any given seed value the resulting ABC posterior samples will always be identical.
 
 Our main dependencies are joblib, numba, numpy, and scipy.
-The package also uses psutil, matplotlib, fastprogress, and hilbertcurve, though in most cases these can be commented out if it were necessary.
+The package also uses matplotlib, fastprogress, and hilbertcurve, though these could be removed if necessary.
 
 !!! note
 

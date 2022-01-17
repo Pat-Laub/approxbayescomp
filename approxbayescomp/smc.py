@@ -8,7 +8,6 @@ from time import time
 import joblib  # type: ignore
 import numpy as np
 import numpy.random as rnd
-import psutil  # type: ignore
 from fastprogress.fastprogress import master_bar, progress_bar  # type: ignore
 from numba import njit  # type: ignore
 from numpy.random import SeedSequence, default_rng  # type: ignore
@@ -467,9 +466,6 @@ def smc_setup(
     else:
         numSumStats = 1
 
-    if not numProcs:
-        numProcs = psutil.cpu_count(logical=False)
-
     newPriors = [
         SimpleIndependentUniformPrior(
             model.prior.lower,
@@ -605,7 +601,7 @@ def smc(
     sumstats=wass_sumstats,
     distance=wass_dist,
     modelPrior=None,
-    numProcs=None,
+    numProcs=1,
     epsMin=0,
     saveIters=False,
     seed=1,
