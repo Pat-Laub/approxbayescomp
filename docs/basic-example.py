@@ -15,7 +15,7 @@ prior = abc.IndependentUniformPrior([(0, 100), (-5, 5), (0, 3)])
 model = abc.Model(freq, sev, psi, prior)
 
 # Fit the model to the data using ABC
-numIters = 5  # The number of SMC iterations to perform
-popSize = 100  # The population size of the SMC method
+numIters = 8  # The number of SMC iterations to perform
+popSize = 1000  # The population size of the SMC method
 
 fit = abc.smc(numIters, popSize, obsData, model)
