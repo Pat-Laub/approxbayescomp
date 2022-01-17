@@ -3,17 +3,12 @@ site_name: approxbayescomp
 nav:
   - Home: index.md
   - What is ABC?: what-is-abc.md
-  - Examples (WIP):
-      # - Section 2: Section 2.ipynb
-      - Geometric-Exponential Compound Sums: Section 3.1.ipynb
-      # - Model Selection: Section 4.ipynb
-      # - Section 5.1 Part 1: Section 5.1 Part 1.ipynb
-      # - Section 5.1 Part 2: Section 5.1 Part 2.ipynb
-      - Frequency-Dependent Claim Sizes: Section 5.2.ipynb
-      - Multiple Claims Processes: Section 5.3.ipynb
-      - Seasonal Claim Arrivals: Section 5.4.ipynb
-      - Australian Auto Claims Dataset: Section 6.ipynb
-      - Model Selection: Table 2.ipynb
+  - Examples:
+      - Geometric-Exponential Compound Sums: geometric-exponential.ipynb
+      - Frequency-Dependent Claim Sizes: frequency-dependent-claim-sizes.ipynb
+      - Multiple Claims Processes: multiple-claims-processes.ipynb
+      - Seasonal Claim Arrivals: seasonal-claim-arrivals.ipynb
+      - Model Selection: model-selection.ipynb
 
 theme:
   name: material
@@ -32,7 +27,7 @@ plugins:
   - search
   - mkdocs-jupyter:
       execute: False
-      ignore_h1_titles: True
+      ignore_h1_titles: False
   - macros
 
 markdown_extensions:

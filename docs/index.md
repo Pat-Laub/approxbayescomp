@@ -77,8 +77,8 @@ Modifying just these lines will generate the identical output as the example abo
 
 ## Other Examples and Resources
 
-See the [What is ABC](/what-is-abc/) page for an illustrative example of the core ABC concept.
-For examples of this package in use, start with the [Geometric-Exponential example](/Section%203.1/) page and the following ones.
+See the [What is ABC](what-is-abc/) page for an illustrative example of the core ABC concept.
+For examples of this package in use, start with the [Geometric-Exponential example](geometric-exponential/) page and the following ones.
 
 This package is the result of our paper "[Approximate Bayesian Computation to fit and compare insurance loss models](https://arxiv.org/abs/2007.03833)".
 For a detailed description of the aims and methodology of ABC check out this paper.
