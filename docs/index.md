@@ -20,12 +20,13 @@ The source code for the package is available on [Github](https://github.com/Pat-
 
 Consider a basic insurance example where each month our insurance company receives a random number of claims, each of which is of a random size.
 Specifically, say that in month $i$ we have $N_i \sim \mathsf{Poisson}(\lambda)$ i.i.d. number of claims, and each claim is $U_{i,j} \sim \mathsf{Lognormal}(\mu, \sigma^2)$ sized and i.i.d.
+In other words, $\log(U_{i,j}) \sim \mathsf{Normal}(\mu, \sigma^2)$.
 At each month we can observe the aggregate claims, that is,
 
 \[ X_i = \sum_{j=0}^{N_i} U_{i,j} \]
 
 for $i=1,\dots,T$, that is, we observe $T$ months of data.
-Lastly, we have the prior beliefs that $\lambda \sim \mathsf{Unif}(0, 100)$, $\mu \sim \mathsf{Unif}(-5, 5)$, and $\sigma^2 \sim \mathsf{Unif}(0, 3)$.
+Lastly, we have the prior beliefs that $\lambda \sim \mathsf{Unif}(0, 100)$, $\mu \sim \mathsf{Unif}(-5, 5)$, and $\sigma \sim \mathsf{Unif}(0, 3)$.
 
 The `approxbayescomp` code to fit this data would be:
 
@@ -33,7 +34,7 @@ The `approxbayescomp` code to fit this data would be:
 {% include 'basic-example.py' %}
 ```
 
-Then `fit` will contain a collection of weighted samples from the approximate posterior distribution of $(\lambda, \mu, \sigma^2)$.
+Then `fit` will contain a collection of weighted samples from the approximate posterior distribution of $(\lambda, \mu, \sigma)$.
 
 ## Other Resources
 
