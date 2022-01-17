@@ -4,10 +4,154 @@
 """
 import matplotlib.pyplot as plt
 import numpy as np
-from numpy.random import choice
+from numpy.random import choice, default_rng
 from scipy.stats import gaussian_kde
 
-from .weighted import weighted_distplot
+from .weighted import iqr, resample, resample_and_kde
+
+
+# A 'recommended' number of bins for a histogram of weighted data.
+def freedman_diaconis_bins(data, weights, maxBins=50):
+    if len(data) < 2:
+        return 1
+    neff = 1 / np.sum(weights ** 2)
+    h = 2 * iqr(data, weights) / (neff ** (1 / 3))
+
+    # fall back to sqrt(data.size) bins if iqr is 0
+    if h == 0:
+        return min(int(np.sqrt(data.size)), maxBins)
+    else:
+        return min(int(np.ceil((data.max() - data.min()) / h)), maxBins)
+
+
+# This is supposed to be a replacement for the seaborn library
+# function 'distplot' which works correctly for weighted samples.
+def weighted_distplot(
+    data,
+    weights,
+    ax=None,
+    cut=3,
+    clip=(-np.inf, np.inf),
+    seed=1,
+    repeats=10,
+    hist=True,
+    despine=True,
+):
+    if not ax:
+        ax = plt.gca()
+
+    # Pull out the next color
+    (line,) = ax.plot(data.mean(), 0)
+    color = line.get_color()
+    line.remove()
+
+    # Plot the histogram
+    if hist:
+        rng = default_rng(seed)
+        dataResampled = data[resample(rng, weights, repeats=repeats)]
+        bins = freedman_diaconis_bins(data, weights)
+        ax.hist(dataResampled, bins=bins, color=color, density=True, alpha=0.4)
+
+    # Choose support for KDE
+    neff = 1 / sum(weights ** 2)
+    scott = neff ** (-1.0 / 5)
+    cov = np.cov(data, bias=False, aweights=weights)
+    bw = scott * np.sqrt(cov)
+
+    support_min = max(data.min() - bw * cut, clip[0])
+    support_max = min(data.max() + bw * cut, clip[1])
+
+    xs = np.linspace(support_min, support_max, 200)
+
+    # Plot the KDE
+    K = gaussian_kde(data.T, weights=weights)
+    ys = K(xs)
+    ax.plot(xs, ys, color=color)
+
+    if despine:
+        seaborn_despine()
+
+
+def draw_prior(prior, axs, color="tab:purple"):
+    lines = []
+    for i, priorI in enumerate((prior.marginals)):
+        priorL = priorI.isf(1)
+        priorR = priorI.isf(0)
+
+        if priorL > 0:
+            xlimL = priorL * 0.9
+        elif priorL == 0:
+            if priorR == 1 or priorR == 1.0:
+                xlimL = -0.1
+            elif priorR == 2 or priorR == 2.0:
+                xlimL = -0.2
+            else:
+                xlimL = -1
+        else:
+            xlimL = priorL * 1.1
+
+        xlimR = priorR * 1.1
+
+        xs = np.linspace(xlimL, xlimR, 100)
+        xs = np.sort(
+            np.concatenate(
+                (
+                    xs,
+                    [
+                        priorL,
+                        priorL - 1e-8,
+                        priorL + 1e-8,
+                        priorR,
+                        priorR - 1e-8,
+                        priorR + 1e-8,
+                    ],
+                )
+            )
+        )
+
+        (priorLine,) = axs[i].plot(
+            xs, priorI.pdf(xs), label="Prior", color=color, alpha=0.75, zorder=0
+        )
+        lines.append(priorLine)
+
+    return lines
+
+
+def plot_posteriors(
+    fit,
+    prior,
+    subtitles=[],
+    refLines=None,
+    figsize=(5.0, 2.0),
+    dpi=350,
+    refStyle={"color": "black", "linestyle": "--"},
+    removeYAxis=False,
+):
+
+    numThetas = len(prior.marginals)
+    fig, axs = plt.subplots(1, numThetas, tight_layout=True, figsize=figsize, dpi=dpi)
+
+    for i in range(numThetas):
+        pLims = [prior.marginals[i].isf(1), prior.marginals[i].isf(0)]
+
+        dataResampled, xs, ys = resample_and_kde(
+            fit.samples[:, i], fit.weights, clip=pLims
+        )
+        axs[i].plot(xs, ys)
+
+        if refLines:
+            axs[i].axvline(refLines[i], **refStyle)
+
+        if i < len(subtitles):
+            axs[i].set_title(subtitles[i])
+
+        if removeYAxis:
+            axs[i].set_yticks([])
+
+    draw_prior(prior, axs)
+    seaborn_despine()
+    if removeYAxis:
+        seaborn_despine(left=True)
 
 
 ################################################################
@@ -127,3 +271,95 @@ def plot_abc_fit(fit):
             weighted_distplot(samples[:, i], weights, ax=ax)
 
     return axs
+
+
+# Copied directly from https://github.com/mwaskom/seaborn/blob/77e3b6b03763d24cc99a8134ee9a6f43b32b8e7b/seaborn/utils.py#L291
+def seaborn_despine(
+    fig=None,
+    ax=None,
+    top=True,
+    right=True,
+    left=False,
+    bottom=False,
+    offset=None,
+    trim=False,
+):
+    """Remove the top and right spines from plot(s).
+    fig : matplotlib figure, optional
+        Figure to despine all axes of, defaults to the current figure.
+    ax : matplotlib axes, optional
+        Specific axes object to despine. Ignored if fig is provided.
+    top, right, left, bottom : boolean, optional
+        If True, remove that spine.
+    offset : int or dict, optional
+        Absolute distance, in points, spines should be moved away
+        from the axes (negative values move spines inward). A single value
+        applies to all spines; a dict can be used to set offset values per
+        side.
+    trim : bool, optional
+        If True, limit spines to the smallest and largest major tick
+        on each non-despined axis.
+    Returns
+    -------
+    None
+    """
+    # Get references to the axes we want
+    if fig is None and ax is None:
+        axes = plt.gcf().axes
+    elif fig is not None:
+        axes = fig.axes
+    elif ax is not None:
+        axes = [ax]
+
+    for ax_i in axes:
+        for side in ["top", "right", "left", "bottom"]:
+            # Toggle the spine objects
+            is_visible = not locals()[side]
+            ax_i.spines[side].set_visible(is_visible)
+            if offset is not None and is_visible:
+                try:
+                    val = offset.get(side, 0)
+                except AttributeError:
+                    val = offset
+                ax_i.spines[side].set_position(("outward", val))
+
+        # Potentially move the ticks
+        if left and not right:
+            maj_on = any(t.tick1line.get_visible() for t in ax_i.yaxis.majorTicks)
+            min_on = any(t.tick1line.get_visible() for t in ax_i.yaxis.minorTicks)
+            ax_i.yaxis.set_ticks_position("right")
+            for t in ax_i.yaxis.majorTicks:
+                t.tick2line.set_visible(maj_on)
+            for t in ax_i.yaxis.minorTicks:
+                t.tick2line.set_visible(min_on)
+
+        if bottom and not top:
+            maj_on = any(t.tick1line.get_visible() for t in ax_i.xaxis.majorTicks)
+            min_on = any(t.tick1line.get_visible() for t in ax_i.xaxis.minorTicks)
+            ax_i.xaxis.set_ticks_position("top")
+            for t in ax_i.xaxis.majorTicks:
+                t.tick2line.set_visible(maj_on)
+            for t in ax_i.xaxis.minorTicks:
+                t.tick2line.set_visible(min_on)
+
+        if trim:
+            # clip off the parts of the spines that extend past major ticks
+            xticks = np.asarray(ax_i.get_xticks())
+            if xticks.size:
+                firsttick = np.compress(xticks >= min(ax_i.get_xlim()), xticks)[0]
+                lasttick = np.compress(xticks <= max(ax_i.get_xlim()), xticks)[-1]
+                ax_i.spines["bottom"].set_bounds(firsttick, lasttick)
+                ax_i.spines["top"].set_bounds(firsttick, lasttick)
+                newticks = xticks.compress(xticks <= lasttick)
+                newticks = newticks.compress(newticks >= firsttick)
+                ax_i.set_xticks(newticks)
+
+            yticks = np.asarray(ax_i.get_yticks())
+            if yticks.size:
+                firsttick = np.compress(yticks >= min(ax_i.get_ylim()), yticks)[0]
+                lasttick = np.compress(yticks <= max(ax_i.get_ylim()), yticks)[-1]
+                ax_i.spines["left"].set_bounds(firsttick, lasttick)
+                ax_i.spines["right"].set_bounds(firsttick, lasttick)
+                newticks = yticks.compress(yticks <= lasttick)
+                newticks = newticks.compress(newticks >= firsttick)
+                ax_i.set_yticks(newticks)
