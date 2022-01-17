@@ -282,10 +282,11 @@ def simulate_claim_data(rg, T, freq, sev, theta):
     else:
         raise Exception(f"Unknown frequency distribution: {freq}")
 
-    # If the total number is way too large, it'll probably be discarded
-    # anyway so reduce the size.
+    # If the total number is way too large, quickly return some garbage
+    # which will not be accepted.
     if freqs.sum() > 1e7:
-        raise Exception("Trying to simulate way too many summands, try adjusting prior")
+        # Trying to simulate way too many summands, try adjusting prior
+        return (np.repeat(1, T), np.repeat(np.inf, T))
 
     if sev == "frequency dependent exponential":
         sevs = np.concatenate(
