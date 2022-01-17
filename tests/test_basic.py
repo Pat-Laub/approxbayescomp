@@ -80,7 +80,20 @@ def test_full_model_using_custom_simulator():
     assert np.max(fit.dists) < epsMin
 
 
+def test_multiple_processes():
+    # Specify model to fit
+    params = ("λ", "β", "δ")
+    prior = abc.IndependentUniformPrior([(0, 10), (0, 20), (-1, 1)], params)
+    model = abc.Model("poisson", "frequency dependent exponential", psi, prior)
+
+    numProcs = 4
+    epsMin = 6
+    fit = abc.smc(numIters, popSize, xData, model, numProcs=numProcs, epsMin=epsMin)
+    assert np.max(fit.dists) < epsMin
+
+
 if __name__ == "__main__":
     test_full_model()
     test_full_model_using_custom_simulator()
     test_partially_observed_model()
+    test_multiple_processes()
