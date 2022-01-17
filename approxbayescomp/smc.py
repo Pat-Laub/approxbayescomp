@@ -609,6 +609,7 @@ def smc(
     matchZeros=False,
     recycling=True,
 ):
+    obs = np.asarray(obs)
 
     T, M, models, modelPrior, numProcs, numSumStats, numZerosData, ssData = smc_setup(
         obs,
