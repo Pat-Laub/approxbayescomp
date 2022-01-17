@@ -624,9 +624,10 @@ def smc(
     mb = master_bar(range(0, numIters + 1))
 
     if verbose:
+        potentialPlural = "processes" if numProcs > 1 else "process"
         mb.write(
             f"Starting ABC-SMC with population size of {popSize} and sample size "
-            + f"of {T} (~> {numSumStats}) on {numProcs} processes."
+            + f"of {T} (~> {numSumStats}) on {numProcs} {potentialPlural}."
         )
 
     eps = np.inf
