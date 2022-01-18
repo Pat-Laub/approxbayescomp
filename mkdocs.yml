@@ -6,7 +6,7 @@ nav:
   - Examples:
       - Geometric-Exponential Compound Sums: geometric-exponential.ipynb
       - Frequency-Dependent Claim Sizes: frequency-dependent-claim-sizes.ipynb
-      - Multiple Claims Processes: multiple-claims-processes.ipynb
+      - Bivariate Observations: bivariate-observations.ipynb
       - Seasonal Claim Arrivals: seasonal-claim-arrivals.ipynb
       - Model Selection: model-selection.ipynb
 
