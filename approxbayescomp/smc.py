@@ -176,7 +176,7 @@ def _sample_one_first_iteration(
                 claimsFake[0], claimsFake[1], model.psi.name, model.psi.param
             )
     else:
-        xFake = model.simulator(rg, T, theta)
+        xFake = model.simulator(rg, theta)
 
     dist = distance(ssData, sumstats(xFake))
 
@@ -272,7 +272,7 @@ def _sample_one(
                     continue
 
         else:
-            xFake = model.simulator(rg, T, theta)
+            xFake = model.simulator(rg, theta)
             if not num_zeros_match(numZerosData, xFake):
                 continue
 

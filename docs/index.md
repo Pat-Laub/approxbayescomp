@@ -58,10 +58,10 @@ The equivalent version for this example would be:
 ```python
 import numpy as np
 
-def simulate_aggregate_claims(rg, T, theta):
+def simulate_aggregate_claims(rg, theta, T):
     """
-    Generate 'T' observations from the model specified by 'theta'
-    using the supplied random number generator 'rg'.
+    Generate T observations from the model specified by theta
+    using the random number generator rg.
     """
     lam, mu, sigma = theta
     freqs = rg.poisson(lam, size=T)
@@ -70,7 +70,8 @@ def simulate_aggregate_claims(rg, T, theta):
         aggClaims[t] = np.sum(rg.lognormal(mu, sigma, size=freqs[t]))
     return aggClaims
 
-model = abc.SimulationModel(simulate_aggregate_claims, prior)
+simulator = lambda rg, theta: simulate_aggregate_claims(rg, theta, len(obsData))
+model = abc.SimulationModel(simulator, prior)
 ```
 
 Modifying just these lines will generate the identical output as the example above.

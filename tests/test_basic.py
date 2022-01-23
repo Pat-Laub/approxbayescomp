@@ -1,7 +1,6 @@
+import approxbayescomp as abc
 import numpy as np
 import numpy.random as rnd
-
-import approxbayescomp as abc
 
 numIters = 5
 numItersData = 10
@@ -51,7 +50,7 @@ def test_partially_observed_model():
     assert np.max(fit.dists) < epsMin
 
 
-def simulator(rg, T, theta):
+def simulate_poisson_exponential_sums(rg, theta, T):
     lam = theta[0]
     thetaSev = theta[1:]
     freqs = rg.poisson(lam, size=T)
@@ -73,7 +72,10 @@ def test_full_model_using_custom_simulator():
     # Specify model to fit
     params = ("λ", "β", "δ")
     prior = abc.IndependentUniformPrior([(0, 10), (0, 20), (-1, 1)], params)
-    model = abc.SimulationModel(simulator, prior)
+    model = abc.SimulationModel(
+        lambda rg, theta: simulate_poisson_exponential_sums(rg, theta, len(xData)),
+        prior,
+    )
 
     epsMin = 6
     fit = abc.smc(numIters, popSize, xData, model, epsMin=epsMin, verbose=True)
