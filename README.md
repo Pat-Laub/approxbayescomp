@@ -1,9 +1,9 @@
-# The Python package _approxbayescomp_ for Approximate Bayesian Computation
+# Approximate Bayesian Computation Python Package
 
 ## Package Description
 
 _Approximate Bayesian Computation (ABC)_ is a statistical method to fit a Bayesian model to data when the likelihood function is hard to compute.
-This package implements an efficient form of ABC &mdash; the _sequential Monte Carlo (SMC)_ algorithm.
+The `approxbayescomp` package implements an efficient form of ABC &mdash; the _sequential Monte Carlo (SMC)_ algorithm.
 While it can handle any general statistical problem, we built in some models so that fitting insurance loss distributions is particularly easy. 
 
 The full documentation is available at [https://pat-laub.github.io/approxbayescomp](https://pat-laub.github.io/approxbayescomp/).
