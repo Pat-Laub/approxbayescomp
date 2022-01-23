@@ -2,7 +2,9 @@
 
 ## Package Description
 
-This package implements an efficient _Approximate Bayesian Computation (ABC)_ algorithm &mdash; the _sequential Monte Carlo (SMC)_ algorithm. It was designed to fit insurance loss distributions, though it can handle any general statistical problem.
+_Approximate Bayesian Computation (ABC)_ is a statistical method to fit a Bayesian model to data when the likelihood function is hard to compute.
+This package implements an efficient form of ABC &mdash; the _sequential Monte Carlo (SMC)_ algorithm.
+While it can handle any general statistical problem, we built in some models so that fitting insurance loss distributions is particularly easy. 
 
 ## Installation
 

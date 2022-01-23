@@ -1,45 +1,139 @@
-# _approxbayescomp_ Python package for ABC
+# The Python package _approxbayescomp_ for Approximate Bayesian Computation
 
-This package implements an efficient Approximate Bayesian Computation (ABC) algorithm - the sequential Monte Carlo (SMC) algorithm. It is targeted towards insurance problems (specifically, fitting loss distributions), though it is easily adapted to other situations.
+## Package Description
 
-For a brief video overview of the package, see our 7 min lightning talk at the Insurance Data Science conference:
+_Approximate Bayesian Computation (ABC)_ is a statistical method to fit a Bayesian model to data when the likelihood function is hard to compute.
+This package implements an efficient form of ABC &mdash; the _sequential Monte Carlo (SMC)_ algorithm.
+While it can handle any general statistical problem, we built in some models so that fitting insurance loss distributions is particularly easy. 
 
-[![ABC Talk at Insurance Data Science conference](https://raw.githubusercontent.com/Pat-Laub/approxbayescomp/master/docs/ids-screenshot.png)](https://www.youtube.com/watch?v=EtZdCWoFMBA)
+The full documentation is available at [https://pat-laub.github.io/approxbayescomp](https://pat-laub.github.io/approxbayescomp/).
 
-This package is the result of our paper "[Approximate Bayesian Computation to fit and compare insurance loss models](https://arxiv.org/abs/2007.03833)". To install simply run `pip install approxbayescomp`.
+## Installation
 
-For example, imagine we have an i.i.d. sample of random sums of lognormal variables where the number of summands is Poisson distributed.
-The fit this data we would run:
+To install simply run
 
-```python
+`pip install approxbayescomp`
+
+Soon, it will be possible to install using `conda`; at that point the preferred method will be to run
+
+`conda install approxbayescomp`
+
+## Example
+
+### Using a built-in data generating process simulation method
+
+Consider a basic insurance example where each month our insurance company receives a random number of claims, each of which is of a random size.
+Specifically, say that in month $i$ we have $N_i \sim \mathsf{Poisson}(\lambda)$ i.i.d. number of claims, and each claim is $U_{i,j} \sim \mathsf{Lognormal}(\mu, \sigma^2)$ sized and i.i.d.
+At each month we can observe the aggregate claims, that is,
+\( X_i = \sum_{j=1}^{N_i} U_{i,j} \)
+for $i=1,\dots,T$, that is, we observe $T$ months of data.
+Lastly, we have the prior beliefs that $\lambda \sim \mathsf{Unif}(0, 100),$ $\mu \sim \mathsf{Unif}(-5, 5),$ and $\sigma \sim \mathsf{Unif}(0, 3).$
+
+The `approxbayescomp` code to fit this data would be:
+
+``` python
 import approxbayescomp as abc
 
-# Load data to fit
-obsData = ...
+# Load data to fit (modify this line to load real observations!)
+obsData = [1.0, 2.0, 3.0]
 
-# Frequency-Loss Model
-freq = "poisson"
-sev = "lognormal"
-psi = abc.Psi("sum") # Aggregation process
+# Specify our prior beliefs over (lambda, mu, sigma).
+prior = abc.IndependentUniformPrior([(0, 100), (-5, 5), (0, 3)])
 
 # Fit the model to the data using ABC
-prior = abc.IndependentUniformPrior([(0, 100), (-5, 5), (0, 3)])
-model = abc.Model(freq, sev, psi, prior)
+model = abc.Model("poisson", "lognormal", abc.Psi("sum"), prior)
+numIters = 6  # The number of SMC iterations to perform
+popSize = 250  # The population size of the SMC method
+
 fit = abc.smc(numIters, popSize, obsData, model)
 ```
 
-For a description of the aims and methodology of ABC check out our paper, it is written with ABC newcomers in mind.
-For examples of this package in use, check out the Jupyter notebooks in our [online supplement repository](https://github.com/LaGauffre/ABCFitLoMo) for the paper.
+Then `fit` will contain a collection of weighted samples from the approximate posterior distribution of $(\lambda, \mu, \sigma)$.
+The _posterior mean_ for these parameters would be easily calculated:
+
+``` python
+print("Posterior mean of lambda: ", np.sum(fit.samples[:, 0] * fit.weights))
+print("Posterior mean of mu: ", np.sum(fit.samples[:, 1] * fit.weights))
+print("Posterior mean of sigma: ", np.sum(fit.samples[:, 2] * fit.weights))
+```
+
+### Using a user-suppled simulation method (NEW)
+
+We have built many standard insurance loss models into the package, so in the previous example
+
+```python
+model = abc.Model("poisson", "lognormal", abc.Psi("sum"), prior)
+```
+
+is all that is required to specify this data-generating process.
+However, for non-insurance processes, we have to supply a function to simulate from the data-generating process.
+The equivalent version for this example would be:
+
+```python
+import numpy as np
+
+def simulate_aggregate_claims(rg, theta, T):
+    """
+    Generate T observations from the model specified by theta
+    using the random number generator rg.
+    """
+    lam, mu, sigma = theta
+    freqs = rg.poisson(lam, size=T)
+    aggClaims = np.empty(T, np.float64)
+    for t in range(T):
+        aggClaims[t] = np.sum(rg.lognormal(mu, sigma, size=freqs[t]))
+    return aggClaims
+
+simulator = lambda rg, theta: simulate_aggregate_claims(rg, theta, len(obsData))
+model = abc.SimulationModel(simulator, prior)
+```
+
+Modifying just these lines will generate the identical output as the example above.
+
+## Other Examples and Resources
+
+See the [What is ABC](https://pat-laub.github.io/approxbayescomp/what-is-abc/) page for an illustrative example of the core ABC concept.
+For examples of this package in use, start with the [Geometric-Exponential example](https://pat-laub.github.io/approxbayescomp/geometric-exponential/) page and the following ones.
+
+This package is the result of our paper "[Approximate Bayesian Computation to fit and compare insurance loss models](https://arxiv.org/abs/2007.03833)".
+For a detailed description of the aims and methodology of ABC check out this paper.
+It was written with ABC newcomers in mind.
+
+If you prefer audio/video, see Patrick's 7 min [lightning talk](https://www.youtube.com/watch?v=EtZdCWoFMBA) at the Insurance Data Science conference:
+
+[![ABC Talk at Insurance Data Science conference](https://github.com/Pat-Laub/approxbayescomp/blob/master/docs/ids-screenshot.png?raw=true)](https://www.youtube.com/watch?v=EtZdCWoFMBA)
+
+## Details
 
 The main design goal for this package was computational speed.
 ABC is notoriously computationally demanding, so we spent a long time optimising the code as much as possible.
 The key functions are JIT-compiled to C with `numba` (we experimented with JIT-compiling the entire SMC algorithm, but `numba`'s random variable generation is surprisingly slower than `numpy`'s implementation).
 Everything that can be `numpy`-vectorised has been.
 And we scale to use as many CPU cores available on a machine using `joblib`.
-We also aimed to have total reproducibility, so for any given seed value the resulting ABC posterior samples will always be identical. 
+We also aimed to have total reproducibility, so for any given seed value the resulting ABC posterior samples will always be identical.
 
 Our main dependencies are joblib, numba, numpy, and scipy.
-The package also uses psutil, matplotlib, fastprogress, and hilbertcurve, though in most cases these can be commented out if it were necessary.
+The package also uses matplotlib, fastprogress, and hilbertcurve, though these could be removed if necessary.
 
-Patrick has a rough start at a C++ version of this package at the [cppabc](https://github.com/Pat-Laub/cppabc) repository.
+Note, Patrick has a rough start at a C++ version of this package at the [cppabc](https://github.com/Pat-Laub/cppabc) repository.
 It only handles the specific Geometric-Exponential random sums case, though if you are interested in collaborating to expand this, let him know!
+
+## Authors
+
+- [Patrick Laub](https://pat-laub.github.io/) (author, maintainer),
+- [Pierre-Olivier Goffard](http://pierre-olivier.goffard.me/) (author).
+
+## Citation
+
+Pierre-Olivier Goffard, Patrick J. Laub (2021), _Approximate Bayesian Computations to fit and compare insurance loss models_, Insurance: Mathematics and Economics, 100, pp. 350-371
+
+```bibtex
+@article{approxbayescomp,
+  title={Approximate Bayesian Computations to fit and compare insurance loss models},
+  author={Goffard, Pierre-Olivier and Laub, Patrick J},
+  journal={Insurance: Mathematics and Economics},
+  volume={100},
+  pages={350--371},
+  year={2021}
+}
+```
