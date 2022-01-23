@@ -604,7 +604,7 @@ def smc(
     numProcs=1,
     epsMin=0,
     saveIters=False,
-    seed=1,
+    seed=None,
     verbose=False,
     matchZeros=False,
     recycling=True,

@@ -35,7 +35,7 @@ def test_full_model():
     model = abc.Model("poisson", "frequency dependent exponential", psi, prior)
 
     epsMin = 6
-    fit = abc.smc(numIters, popSize, xData, model, epsMin=epsMin, verbose=True)
+    fit = abc.smc(numIters, popSize, xData, model, epsMin=epsMin, verbose=True, seed=1)
     assert np.max(fit.dists) < epsMin
 
 
@@ -46,7 +46,9 @@ def test_partially_observed_model():
     model = abc.Model(freqs, "frequency dependent exponential", psi, prior)
 
     epsMin = 3
-    fit = abc.smc(numItersData, popSize, xData, model, epsMin=epsMin, verbose=True)
+    fit = abc.smc(
+        numItersData, popSize, xData, model, epsMin=epsMin, verbose=True, seed=1
+    )
     assert np.max(fit.dists) < epsMin
 
 
@@ -78,7 +80,7 @@ def test_full_model_using_custom_simulator():
     )
 
     epsMin = 6
-    fit = abc.smc(numIters, popSize, xData, model, epsMin=epsMin, verbose=True)
+    fit = abc.smc(numIters, popSize, xData, model, epsMin=epsMin, verbose=True, seed=1)
     assert np.max(fit.dists) < epsMin
 
 
@@ -90,7 +92,9 @@ def test_multiple_processes():
 
     numProcs = 4
     epsMin = 6
-    fit = abc.smc(numIters, popSize, xData, model, numProcs=numProcs, epsMin=epsMin)
+    fit = abc.smc(
+        numIters, popSize, xData, model, numProcs=numProcs, epsMin=epsMin, seed=1
+    )
     assert np.max(fit.dists) < epsMin
 
 
