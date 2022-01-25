@@ -4,7 +4,7 @@
 
 _Approximate Bayesian Computation (ABC)_ is a statistical method to fit a Bayesian model to data when the likelihood function is hard to compute.
 The `approxbayescomp` package implements an efficient form of ABC &mdash; the _sequential Monte Carlo (SMC)_ algorithm.
-While it can handle any general statistical problem, we built in some models so that fitting insurance loss distributions is particularly easy. 
+While it can handle any general statistical problem, we built in some models so that fitting insurance loss distributions is particularly easy.
 
 The full documentation is available at [https://pat-laub.github.io/approxbayescomp](https://pat-laub.github.io/approxbayescomp/).
 
@@ -113,7 +113,7 @@ And we scale to use as many CPU cores available on a machine using `joblib`.
 We also aimed to have total reproducibility, so for any given seed value the resulting ABC posterior samples will always be identical.
 
 Our main dependencies are joblib, numba, numpy, and scipy.
-The package also uses matplotlib, fastprogress, and hilbertcurve, though these could be removed if necessary.
+Also, the package sometimes calls functions from matplotlib, tqdm, and hilbertcurve.
 
 Note, Patrick has a rough start at a C++ version of this package at the [cppabc](https://github.com/Pat-Laub/cppabc) repository.
 It only handles the specific Geometric-Exponential random sums case, though if you are interested in collaborating to expand this, let him know!

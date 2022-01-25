@@ -674,6 +674,8 @@ def smc(
     strictPopulationSize=False,
 ):
     obs = np.asarray(obs)
+    if numProcs == 1:
+        strictPopulationSize = True
 
     T, M, models, modelPrior, numProcs, numSumStats, numZerosData, ssData = smc_setup(
         obs,
