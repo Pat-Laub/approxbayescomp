@@ -92,8 +92,31 @@ def test_multiple_processes():
 
     numProcs = 4
     epsMin = 6
+
+    # Check both strictPopulationSize=True and False work
     fit = abc.smc(
-        numIters, popSize, xData, model, numProcs=numProcs, epsMin=epsMin, seed=1
+        numIters,
+        popSize,
+        xData,
+        model,
+        numProcs=numProcs,
+        epsMin=epsMin,
+        verbose=True,
+        seed=1,
+        strictPopulationSize=True,
+    )
+    assert np.max(fit.dists) < epsMin
+
+    fit = abc.smc(
+        numIters,
+        popSize,
+        xData,
+        model,
+        numProcs=numProcs,
+        epsMin=epsMin,
+        verbose=True,
+        seed=1,
+        strictPopulationSize=False,
     )
     assert np.max(fit.dists) < epsMin
 

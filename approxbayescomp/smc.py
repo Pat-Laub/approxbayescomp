@@ -8,10 +8,10 @@ from time import time
 import joblib  # type: ignore
 import numpy as np
 import numpy.random as rnd
-from fastprogress.fastprogress import master_bar, progress_bar  # type: ignore
 from numba import njit  # type: ignore
 from numpy.random import SeedSequence, default_rng  # type: ignore
 from scipy.stats import gaussian_kde  # type: ignore
+from tqdm.auto import tqdm
 
 from .simulate import sample_discrete_dist, sim_multivariate_normal, simulate_claim_data
 from .wasserstein import wass_dist, wass_sumstats
@@ -195,8 +195,10 @@ def num_zeros_match(numZerosData, xFake):
     return True
 
 
-def _sample_one(
+def sample_particles(
     seed,
+    simulationBudget,
+    stopTaskAfterNParticles,
     models,
     modelPrior,
     kdes,
@@ -206,7 +208,7 @@ def _sample_one(
     numZerosData,
     ssData,
     T,
-    systematic=False,
+    systematic,
 ):
     rg = default_rng(seed)
     numba_seed(seed)
@@ -215,10 +217,14 @@ def _sample_one(
         modelGen = index_generator(rg, modelPrior)
         thetaGens = {}
 
-    attempt = 0
-    m = 0
-    while True:
-        attempt += 1
+    acceptedParticles = []
+    numAttempts = 0
+
+    while (
+        len(acceptedParticles) < stopTaskAfterNParticles
+        and numAttempts < simulationBudget
+    ):
+        numAttempts += 1
 
         if not systematic:
             m = sample_discrete_dist(modelPrior)
@@ -286,14 +292,9 @@ def _sample_one(
             weight = np.exp(thetaLogWeight)
 
             if weight > 0:
-                break
-            else:
-                # In the super-unlikely event that the particle's weight
-                # is so small that it is rounded down to 0, then throw
-                # this away and keep sampling.
-                continue
+                acceptedParticles.append((m, theta, weight, dist))
 
-    return m, theta, weight, dist, attempt
+    return acceptedParticles, numAttempts
 
 
 # Sample a population of particles
@@ -311,20 +312,19 @@ def sample_population(
     numZerosData,
     ssData,
     T,
-    mb,
-    systematic=False,
+    systematic,
+    prevNumSims,
+    strictPopulationSize,
 ):
     samples = []
-    ms = np.zeros(n) * np.NaN
-    weights = np.zeros(n) * np.NaN
-    dists = np.zeros(n) * np.NaN
+    ms = []
+    weights = []
+    dists = []
     numSims = 0
 
-    seeds = (s.generate_state(1)[0] for s in sg.spawn(n))
-
-    sample_first_iteration = joblib.delayed(_sample_one_first_iteration)
-    sample = joblib.delayed(_sample_one)
     if t == 0:
+        sample_first_iteration = joblib.delayed(_sample_one_first_iteration)
+        seeds = (s.generate_state(1)[0] for s in sg.spawn(n))
         results = parallel(
             sample_first_iteration(
                 seed,
@@ -335,34 +335,90 @@ def sample_population(
                 ssData,
                 T,
             )
-            for seed in progress_bar(seeds, parent=mb, total=n)
+            for seed in seeds
         )
+
+        numSims = n
+        for i in range(n):
+            m, theta, weight, dist, _ = results[i]
+            ms.append(m)
+            samples.append(theta)
+            weights.append(weight)
+            dists.append(dist)
 
     else:
-        results = parallel(
-            sample(
-                seed,
-                models,
-                modelPrior,
-                kdes,
-                sumstats,
-                distance,
-                eps,
-                numZerosData,
-                ssData,
-                T,
-                systematic,
-            )
-            for seed in progress_bar(seeds, parent=mb, total=n)
-        )
+        sample = joblib.delayed(sample_particles)
 
-    for i in range(n):
-        m, theta, weight, dist, attempts = results[i]
-        ms[i] = m
-        samples.append(theta)
-        weights[i] = weight
-        dists[i] = dist
-        numSims += attempts
+        if strictPopulationSize:
+            # If we are only going to simulate exactly n particles,
+            # then we create n batches which each simulate one particle
+            # and they just keep going until they get that one particle.
+            numParallelTasks = n
+            simulationBudget = np.inf
+            stopTaskAfterNParticles = 1
+        else:
+            # Start by guessing how many simulations will be required
+            # to generate at least n particles at this epsilon threshold.
+            estNumSimsRequired = prevNumSims / 10
+            # estNumSimsRequired = int(np.ceil(2.5 * prevNumSims))
+
+            # Split the simulation burden evenly between each of the
+            # CPU processes. Tell each core to give us as many particles
+            # as it can find when given a fixed simulation budget.
+            numParallelTasks = parallel.n_jobs
+            simulationBudget = int(np.ceil(estNumSimsRequired / numParallelTasks))
+            stopTaskAfterNParticles = np.inf
+
+        # bar = tqdm(total=n, position=0, leave=False)
+
+        numParticles = 0
+        while numParticles < n:
+            seeds = (s.generate_state(1)[0] for s in sg.spawn(numParallelTasks))
+            results = parallel(
+                sample(
+                    seed,
+                    simulationBudget,
+                    stopTaskAfterNParticles,
+                    models,
+                    modelPrior,
+                    kdes,
+                    sumstats,
+                    distance,
+                    eps,
+                    numZerosData,
+                    ssData,
+                    T,
+                    systematic,
+                )
+                for seed in seeds
+            )
+
+            for particles, simsUsed in results:
+                numSims += simsUsed
+                for particle in particles:
+                    m, theta, weight, dist = particle
+                    ms.append(m)
+                    samples.append(theta)
+                    weights.append(weight)
+                    dists.append(dist)
+
+                    numParticles += 1
+                    # bar.update(1)
+
+            # If we collect less than n particles, then we can reduce
+            # the simulation budget for the next time around
+            numParticlesLeft = n - numParticles
+            if numParticlesLeft > 0 and not strictPopulationSize:
+                estNumSimsRequired = (
+                    1.1 * numParticlesLeft * (numSims / max(numParticles, 1))
+                )
+                simulationBudget = int(np.ceil(estNumSimsRequired / numParallelTasks))
+
+        # bar.close()
+
+    ms = np.array(ms)
+    weights = np.array(weights)
+    dists = np.array(dists)
 
     weights /= np.sum(weights)
     if len(models) == 1:
@@ -500,7 +556,6 @@ def prepare_next_population(
     verbose,
     saveIters,
     M,
-    mb,
     t,
     eps,
     ms,
@@ -511,6 +566,7 @@ def prepare_next_population(
     elapsed,
 ):
 
+    popSize0 = len(ms)
     ESS0 = calculate_ess(M, ms, weights)
 
     # If we're not finished with the SMC iterations, throw
@@ -574,14 +630,20 @@ def prepare_next_population(
 
     if verbose:
         ESS = calculate_ess(M, ms, weights)
-        update = f"Finished iteration {t}, eps = {eps:.2f}, "
+        update = (
+            f"Finished SMC iteration {t}, "
+            if t > 0
+            else "Finished sampling from prior, "
+        )
+        update += f"eps = {eps:.2f}, "
         elapsedMins = np.round(elapsed / 60, 1)
         update += f"time = {np.round(elapsed)}s / {elapsedMins}m, "
+        update += f"popSize = {popSize0} -> {len(ms)}, "
         update += f"ESS = {ESS0} -> {ESS}, numSims = {numSims}"
         if M > 1:
             update += f"\n\tmodel populations = {modelPopulations}, "
             update += f"model weights = {modelWeights}"
-        mb.write(update)
+        print(update)
     else:
         ESS = None
 
@@ -608,6 +670,8 @@ def smc(
     verbose=False,
     matchZeros=False,
     recycling=True,
+    systematic=False,
+    strictPopulationSize=False,
 ):
     obs = np.asarray(obs)
 
@@ -622,47 +686,67 @@ def smc(
 
     sg = SeedSequence(seed)
 
-    mb = master_bar(range(0, numIters + 1))
-
     if verbose:
         potentialPlural = "processes" if numProcs > 1 else "process"
-        mb.write(
+        print(
             f"Starting ABC-SMC with population size of {popSize} and sample size "
             + f"of {T} (~> {numSumStats}) on {numProcs} {potentialPlural}."
         )
 
+    totalSimulationCost = 0
     eps = np.inf
     kdes = None
 
     # To keep the linter happy, declare some variables as None temporarily
+    numSims = None
+    ms = weights = samples = dists = None
     if recycling:
         oldMs = oldWeights = oldSamples = oldDists = None
 
-    with joblib.Parallel(n_jobs=numProcs) as parallel:  # , timeout=timeout
-        for t in mb:
+    showProgressBar = not verbose
+
+    with joblib.Parallel(n_jobs=numProcs) as parallel:
+        for t in range(0, numIters + 1):
             if eps <= epsMin:
                 if verbose:
                     print("Stopping now due to exceeding epsilon target.")
                 break
 
+            if showProgressBar and t == 1:
+                bar = tqdm(total=numIters, position=0, leave=False)
+
             startTime = time()
 
-            newMs, newWeights, newSamples, newDists, numSims = sample_population(
-                sg,
-                t,
-                parallel,
-                models,
-                modelPrior,
-                kdes,
-                sumstats,
-                distance,
-                eps,
-                popSize,
-                numZerosData,
-                ssData,
-                T,
-                mb,
-            )
+            try:
+                newMs, newWeights, newSamples, newDists, numSims = sample_population(
+                    sg,
+                    t,
+                    parallel,
+                    models,
+                    modelPrior,
+                    kdes,
+                    sumstats,
+                    distance,
+                    eps,
+                    popSize,
+                    numZerosData,
+                    ssData,
+                    T,
+                    systematic,
+                    numSims,
+                    strictPopulationSize,
+                )
+            except KeyboardInterrupt:
+                if t == 0:
+                    print("A running approxbayescomp.smc(..) call was cancelled.")
+                    raise
+                else:
+                    print(
+                        "A running approxbayescomp.smc(..) call was cancelled, the previous population has been returned."
+                    )
+                    if showProgressBar:
+                        bar.close()
+                    return Fit(ms, weights, samples, dists)
 
             elapsed = time() - startTime
 
@@ -688,6 +772,8 @@ def smc(
                 oldSamples = newSamples
                 oldDists = newDists
 
+            totalSimulationCost += numSims
+
             eps, kdes, ms, samples, dists, weights, ESS = prepare_next_population(
                 numIters,
                 popSize,
@@ -695,7 +781,6 @@ def smc(
                 verbose,
                 saveIters,
                 M,
-                mb,
                 t,
                 eps,
                 ms,
@@ -706,8 +791,14 @@ def smc(
                 elapsed,
             )
 
+            if showProgressBar and t > 0:
+                bar.update(1)
+
+    if showProgressBar:
+        bar.close()
+
     if verbose:
-        update = f"Final population dists <= {dists.max():.2f}, ESS = {ESS}"
+        update = f"Final population dists <= {dists.max():.2f}, ESS = {ESS}, total sims={totalSimulationCost}"
         if M > 1:
             modelPopulations = [np.sum(ms == m) for m in range(M)]
             modelWeights = [np.sum(weights[ms == m]) for m in range(M)]
