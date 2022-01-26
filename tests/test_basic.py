@@ -68,6 +68,22 @@ def simulate_poisson_exponential_sums(rg, theta, T):
     return aggClaims
 
 
+def simulate_poisson_exponential_sums_old_rng(theta, T):
+    lam = theta[0]
+    thetaSev = theta[1:]
+    freqs = rnd.poisson(lam, size=T)
+
+    scale, cor = thetaSev
+
+    aggClaims = np.empty(T, np.float64)
+    for t in range(T):
+        R = freqs[t]
+        claims = scale * np.exp(cor * R) * rnd.exponential(size=R)
+        aggClaims[t] = np.sum(claims)
+
+    return aggClaims
+
+
 def test_full_model_using_custom_simulator():
     # This should give the exact same fit as in test_full_model.
 
@@ -76,6 +92,31 @@ def test_full_model_using_custom_simulator():
     prior = abc.IndependentUniformPrior([(0, 10), (0, 20), (-1, 1)], params)
     model = abc.SimulationModel(
         lambda rg, theta: simulate_poisson_exponential_sums(rg, theta, len(xData)),
+        prior,
+    )
+
+    epsMin = 6
+    fit = abc.smc(
+        numIters,
+        popSize,
+        xData,
+        model,
+        epsMin=epsMin,
+        verbose=True,
+        seed=1,
+        simulatorUsesOldNumpyRNG=False,
+    )
+    assert np.max(fit.dists) < epsMin
+
+
+def test_full_model_using_custom_simulator_old_rng():
+    # This should give the exact same fit as in test_full_model.
+
+    # Specify model to fit
+    params = ("λ", "β", "δ")
+    prior = abc.IndependentUniformPrior([(0, 10), (0, 20), (-1, 1)], params)
+    model = abc.SimulationModel(
+        lambda theta: simulate_poisson_exponential_sums_old_rng(theta, len(xData)),
         prior,
     )
 

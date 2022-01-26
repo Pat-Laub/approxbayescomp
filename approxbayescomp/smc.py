@@ -13,7 +13,12 @@ from numpy.random import SeedSequence, default_rng  # type: ignore
 from scipy.stats import gaussian_kde  # type: ignore
 from tqdm.auto import tqdm
 
-from .simulate import sample_discrete_dist, sim_multivariate_normal, simulate_claim_data
+from .simulate import (
+    sample_discrete_dist,
+    sample_multivariate_normal,
+    sample_uniform_dist,
+    simulate_claim_data,
+)
 from .wasserstein import wass_dist, wass_sumstats
 from .weighted import systematic_resample
 
@@ -26,7 +31,7 @@ except ModuleNotFoundError:
     pass
 
 
-@njit()
+@njit(nogil=True)
 def numba_seed(seed: int):
     rnd.seed(seed)
 
@@ -101,15 +106,6 @@ def uniform_pdf(theta, lower, upper, normConst):
 
 
 @njit(nogil=True)
-def uniform_sampler(lower, width):
-    d = len(lower)
-    theta = np.empty(d, np.float64)
-    for i in range(d):
-        theta[i] = lower[i] + width[i] * rnd.random()
-    return theta
-
-
-@njit(nogil=True)
 def gaussian_kde_logpdf(x, d, n, dataset, weights, inv_cov, log_det):
     """
     Evaluate the log of the estimated pdf on a provided set of points.
@@ -147,21 +143,20 @@ def index_generator(rg, weights):
 
 
 def _sample_one_first_iteration(
-    seed, models, modelPrior, sumstats, distance, ssData, T
+    seed, models, modelPrior, sumstats, distance, ssData, T, simulatorUsesOldNumpyRNG
 ):
     rg = default_rng(seed)
+    rnd.seed(seed)
     numba_seed(seed)
 
     # On the first iteration of SMC we sample from the prior
     # and accept everthing, so the code is a bit simpler.
     m = sample_discrete_dist(modelPrior)
     model = models[m]
-    theta = uniform_sampler(model.prior.lower, model.prior.width)
+    theta = sample_uniform_dist(model.prior.lower, model.prior.width)
 
     if type(model) == Model:
-        claimsFake = simulate_claim_data(
-            rg, T, model.freq, model.sev, theta
-        )  # , obsFreqs
+        claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta)
         if type(model.freq) == str and model.freq.startswith("bivariate"):
             xFake1 = _compute_psi(
                 claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param
@@ -176,7 +171,10 @@ def _sample_one_first_iteration(
                 claimsFake[0], claimsFake[1], model.psi.name, model.psi.param
             )
     else:
-        xFake = model.simulator(rg, theta)
+        if simulatorUsesOldNumpyRNG:
+            xFake = model.simulator(theta)
+        else:
+            xFake = model.simulator(rg, theta)
 
     dist = distance(ssData, sumstats(xFake))
 
@@ -209,8 +207,10 @@ def sample_particles(
     ssData,
     T,
     systematic,
+    simulatorUsesOldNumpyRNG,
 ):
     rg = default_rng(seed)
+    rnd.seed(seed)
     numba_seed(seed)
 
     if systematic:
@@ -245,7 +245,7 @@ def sample_particles(
 
         mu = K.dataset[:, i].flatten()
 
-        theta = sim_multivariate_normal(rg, mu, K.L)
+        theta = sample_multivariate_normal(rg, mu, K.L)
 
         priorVal = uniform_pdf(
             theta, model.prior.lower, model.prior.upper, model.prior.normConst
@@ -259,33 +259,26 @@ def sample_particles(
                 xFake1 = _compute_psi(
                     claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param
                 )
-                if not num_zeros_match(numZerosData[0], xFake1):
-                    continue
-
                 xFake2 = _compute_psi(
                     claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param
                 )
-                if not num_zeros_match(numZerosData[1], xFake2):
-                    continue
-
                 xFake = np.vstack([xFake1, xFake2]).T
             else:
                 xFake = _compute_psi(
                     claimsFake[0], claimsFake[1], model.psi.name, model.psi.param
                 )
-
-                if not num_zeros_match(numZerosData, xFake):
-                    continue
-
         else:
-            xFake = model.simulator(rg, theta)
-            if not num_zeros_match(numZerosData, xFake):
-                continue
+            if simulatorUsesOldNumpyRNG:
+                xFake = model.simulator(theta)
+            else:
+                xFake = model.simulator(rg, theta)
+
+        if not num_zeros_match(numZerosData, xFake):
+            continue
 
         dist = distance(ssData, sumstats(xFake))
 
         if dist < eps:
-
             thetaLogWeight = np.log(priorVal) - gaussian_kde_logpdf(
                 theta, K.d, K.n, K.dataset, K.weights, K.inv_cov, K.log_det
             )
@@ -315,6 +308,7 @@ def sample_population(
     systematic,
     prevNumSims,
     strictPopulationSize,
+    simulatorUsesOldNumpyRNG,
 ):
     samples = []
     ms = []
@@ -334,6 +328,7 @@ def sample_population(
                 distance,
                 ssData,
                 T,
+                simulatorUsesOldNumpyRNG,
             )
             for seed in seeds
         )
@@ -389,6 +384,7 @@ def sample_population(
                     ssData,
                     T,
                     systematic,
+                    simulatorUsesOldNumpyRNG,
                 )
                 for seed in seeds
             )
@@ -672,6 +668,7 @@ def smc(
     recycling=True,
     systematic=False,
     strictPopulationSize=False,
+    simulatorUsesOldNumpyRNG=True,
 ):
     obs = np.asarray(obs)
     if numProcs == 1:
@@ -737,6 +734,7 @@ def smc(
                     systematic,
                     numSims,
                     strictPopulationSize,
+                    simulatorUsesOldNumpyRNG,
                 )
             except KeyboardInterrupt:
                 if t == 0:

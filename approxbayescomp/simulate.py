@@ -17,8 +17,25 @@ def sample_discrete_dist(weights):
     return maxIndex
 
 
-def sim_multivariate_normal(rg, mu, L):
+@njit(nogil=True)
+def sample_uniform_dist(lower, width):
+    d = len(lower)
+    theta = np.empty(d, np.float64)
+    for i in range(d):
+        theta[i] = lower[i] + width[i] * rnd.random()
+    return theta
+
+
+def sample_multivariate_normal(rg, mu, L):
     return mu + L @ rg.normal(size=len(mu))
+
+
+@njit(nogil=True)
+def sample_multivariate_normal_old_rng(mu, L):
+    Z = np.empty(mu.size, np.float64)
+    for i in range(mu.size):
+        Z[i] = rnd.normal()
+    return mu + L.dot(Z)
 
 
 # Unused version which handles any number of states in the chain
