@@ -421,7 +421,7 @@ def sample_population(
     samples = np.vstack(samples)
     dists = np.array(dists)
 
-    return ms, weights, samples, dists, numSims
+    return Fit(ms, weights, samples, dists), numSims
 
 
 def group_samples_by_model(ms, samples, M):
@@ -546,11 +546,12 @@ def smc_setup(
     return T, M, models, modelPrior, numProcs, numSumStats, numZerosData, ssData
 
 
-def take_best_n_particles(n, ms, weights, samples, dists):
+def take_best_n_particles(fit, n):
     """
     Create a subpopulation of particles by selecting the best n particles.
     A particle's quality is assessed by its distance value.
     """
+    ms, weights, samples, dists = fit.models, fit.weights, fit.samples, fit.dists
     eps = np.sort(dists)[n - 1]
     bestParticles = dists <= eps
     ms = ms[bestParticles]
@@ -558,14 +559,15 @@ def take_best_n_particles(n, ms, weights, samples, dists):
     weights /= np.sum(weights)
     samples = samples[bestParticles, :]
     dists = dists[bestParticles]
-    return ms, weights, samples, dists, eps
+    return Fit(ms, weights, samples, dists), eps
 
 
-def reduce_population_size(targetESS, epsMin, M, ms, weights, samples, dists):
+def reduce_population_size(fit, targetESS, epsMin, M):
     """
     Create a subpopulation of particles by discarding the worst particles until the
     ESS drops to a target value. A particle's quality is assessed by its distance value.
     """
+    ms, weights, samples, dists = fit.models, fit.weights, fit.samples, fit.dists
     ESS = calculate_ess(M, ms, weights)
     eps = np.max(dists)
 
@@ -591,50 +593,36 @@ def reduce_population_size(targetESS, epsMin, M, ms, weights, samples, dists):
     weights = weights[weights > 0]
     weights /= np.sum(weights)
 
-    return ms, weights, samples, dists, eps
+    return Fit(ms, weights, samples, dists), eps
 
 
-def combine_populations(
-    ms1, weights1, samples1, dists1, ms2, weights2, samples2, dists2
-):
-    ms = np.concatenate([ms1, ms2])
-    weights = np.concatenate([weights1, weights2])
+def combine_populations(fit1, fit2):
+    ms = np.concatenate([fit1.models, fit2.models])
+    weights = np.concatenate([fit1.weights, fit2.weights])
     weights /= np.sum(weights)
-    samples = np.concatenate([samples1, samples2], axis=0)
-    dists = np.concatenate([dists1, dists2])
-    return ms, weights, samples, dists
+    samples = np.concatenate([fit1.samples, fit2.samples], axis=0)
+    dists = np.concatenate([fit1.dists, fit2.dists])
+    return Fit(ms, weights, samples, dists)
 
 
-def prepare_next_population(
-    onFinalIteration,
-    popSize,
-    epsMin,
-    M,
-    ms,
-    weights,
-    samples,
-    dists,
-):
+def prepare_next_population(onFinalIteration, popSize, epsMin, M, fit):
     """
     After sampling a round in the sequential Monte Carlo algorithm, we
     discard particles in order to create a smaller population which represent
     a better fit to the data.
     """
-    if np.sort(dists)[popSize - 1] < epsMin or onFinalIteration:
+    if np.sort(fit.dists)[popSize - 1] < epsMin or onFinalIteration:
         # Take the best popSize particles to be the final population.
-        ms, weights, samples, dists, eps = take_best_n_particles(
-            popSize, ms, weights, samples, dists
-        )
+        fit, eps = take_best_n_particles(fit, popSize)
     else:
         # Otherwise, throw away enough particles until the ESS
         # drops to popSize/2.
-        ms, weights, samples, dists, eps = reduce_population_size(
-            popSize / 2, epsMin, M, ms, weights, samples, dists
-        )
+        fit, eps = reduce_population_size(fit, popSize / 2, epsMin, M)
 
     # Also, if not finished SMC iterations, throw away models
     # which only have a couple of samples as these will just crash
     # the KDE function.
+    ms, weights, samples, dists = fit.models, fit.weights, fit.samples, fit.dists
     modelPopulations = [np.sum(ms == m) for m in range(M)]
     modelWeights = np.array([np.sum(weights[ms == m]) for m in range(M)])
     modelWeights /= np.sum(modelWeights)
@@ -648,7 +636,7 @@ def prepare_next_population(
                 weights /= np.sum(weights)
                 ms = ms[ms != m]
 
-    return ms, weights, samples, dists, eps
+    return Fit(ms, weights, samples, dists), eps
 
 
 def print_header(popSize, T, numSumStats, numProcs):
@@ -741,8 +729,7 @@ def smc(
 
     # To keep the linter happy, declare some variables as None temporarily
     numSims = None
-    if recycling:
-        oldMs = oldWeights = oldSamples = oldDists = None
+    prevFit = None
 
     with joblib.Parallel(n_jobs=numProcs) as parallel:
         for t in range(0, numIters + 1):
@@ -752,7 +739,7 @@ def smc(
             startTime = time()
 
             try:
-                ms, weights, samples, dists, numSims = sample_population(
+                fit, numSims = sample_population(
                     sg,
                     t,
                     parallel,
@@ -786,25 +773,16 @@ def smc(
 
             # Combine the previous generation with this one.
             if recycling and t > 0:
-                ms, weights, samples, dists = combine_populations(
-                    oldMs, oldWeights, oldSamples, oldDists, ms, weights, samples, dists
-                )
+                fit = combine_populations(prevFit, fit)
 
             # Store the original population size and effective sample size
             # before we start throwing away particles.
             if verbose:
-                popSizeBefore = len(ms)
-                ESSBefore = calculate_ess(M, ms, weights)
+                popSizeBefore = len(fit.models)
+                ESSBefore = calculate_ess(M, fit.models, fit.weights)
 
-            ms, weights, samples, dists, eps = prepare_next_population(
-                t == numIters or interrupted,
-                popSize,
-                epsMin,
-                M,
-                ms,
-                weights,
-                samples,
-                dists,
+            fit, eps = prepare_next_population(
+                t == numIters or interrupted, popSize, epsMin, M, fit
             )
 
             if verbose:
@@ -817,8 +795,8 @@ def smc(
                     numSims,
                     totalSimulationCost,
                     M,
-                    ms,
-                    weights,
+                    fit.models,
+                    fit.weights,
                 )
 
             if interrupted:
@@ -834,15 +812,12 @@ def smc(
 
             # Store this generation to be recycled in the next one.
             if recycling:
-                oldMs = ms
-                oldWeights = weights
-                oldSamples = samples
-                oldDists = dists
+                prevFit = fit
 
             if t < numIters:
-                kdes = fit_all_kdes(ms, samples, weights, M)
+                kdes = fit_all_kdes(fit.models, fit.samples, fit.weights, M)
 
     if showProgressBar:
         bar.close()
 
-    return Fit(ms, weights, samples, dists)
+    return fit
