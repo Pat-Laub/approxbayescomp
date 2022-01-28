@@ -301,7 +301,7 @@ def sample_population(
     parallel,
     models,
     modelPrior,
-    kdes,
+    prevFit,
     sumstats,
     distance,
     eps,
@@ -309,6 +309,7 @@ def sample_population(
     numZerosData,
     ssData,
     T,
+    recycling,
     systematic,
     prevNumSims,
     strictPopulationSize,
@@ -347,6 +348,10 @@ def sample_population(
 
     else:
         sample = joblib.delayed(sample_particles)
+
+        kdes = fit_all_kdes(
+            prevFit.models, prevFit.samples, prevFit.weights, len(models)
+        )
 
         if strictPopulationSize:
             # If we are only going to simulate exactly n particles,
@@ -420,8 +425,13 @@ def sample_population(
     weights /= np.sum(weights)
     samples = np.vstack(samples)
     dists = np.array(dists)
+    fit = Population(ms, weights, samples, dists)
 
-    return Population(ms, weights, samples, dists), numSims
+    # Combine the previous generation with this one.
+    if recycling and prevFit is not None:
+        fit = combine_populations(prevFit, fit)
+
+    return fit, numSims
 
 
 def group_samples_by_model(ms, samples, M):
@@ -724,7 +734,6 @@ def smc(
     totalSimulationCost = 0
     interrupted = False
     eps = np.inf
-    kdes = None
     showProgressBar = not verbose
 
     # To keep the linter happy, declare some variables as None temporarily
@@ -745,7 +754,7 @@ def smc(
                     parallel,
                     models,
                     modelPrior,
-                    kdes,
+                    prevFit,
                     sumstats,
                     distance,
                     eps,
@@ -753,6 +762,7 @@ def smc(
                     numZerosData,
                     ssData,
                     T,
+                    recycling,
                     systematic,
                     numSims,
                     strictPopulationSize,
@@ -770,10 +780,6 @@ def smc(
 
             elapsed = time() - startTime
             totalSimulationCost += numSims
-
-            # Combine the previous generation with this one.
-            if recycling and t > 0:
-                fit = combine_populations(prevFit, fit)
 
             # Store the original population size and effective sample size
             # before we start throwing away particles.
@@ -810,12 +816,7 @@ def smc(
             if showProgressBar and t > 0:
                 bar.update(1)
 
-            # Store this generation to be recycled in the next one.
-            if recycling:
-                prevFit = fit
-
-            if t < numIters:
-                kdes = fit_all_kdes(fit.models, fit.samples, fit.weights, M)
+            prevFit = fit
 
     if showProgressBar:
         bar.close()
