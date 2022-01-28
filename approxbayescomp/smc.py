@@ -47,7 +47,7 @@ Model = namedtuple(
 
 SimulationModel = namedtuple("SimulationModel", ["simulator", "prior"])
 
-Fit = namedtuple("Fit", ["models", "weights", "samples", "dists"])
+Population = namedtuple("Population", ["models", "weights", "samples", "dists"])
 
 # Currently it's difficult to get numba to compile a whole class, and in particular
 # it can't handle the Prior classes. So, e.g. the 'SimpleIndependentUniformPrior' pulls
@@ -421,7 +421,7 @@ def sample_population(
     samples = np.vstack(samples)
     dists = np.array(dists)
 
-    return Fit(ms, weights, samples, dists), numSims
+    return Population(ms, weights, samples, dists), numSims
 
 
 def group_samples_by_model(ms, samples, M):
@@ -559,7 +559,7 @@ def take_best_n_particles(fit, n):
     weights /= np.sum(weights)
     samples = samples[bestParticles, :]
     dists = dists[bestParticles]
-    return Fit(ms, weights, samples, dists), eps
+    return Population(ms, weights, samples, dists), eps
 
 
 def reduce_population_size(fit, targetESS, epsMin, M):
@@ -593,7 +593,7 @@ def reduce_population_size(fit, targetESS, epsMin, M):
     weights = weights[weights > 0]
     weights /= np.sum(weights)
 
-    return Fit(ms, weights, samples, dists), eps
+    return Population(ms, weights, samples, dists), eps
 
 
 def combine_populations(fit1, fit2):
@@ -602,7 +602,7 @@ def combine_populations(fit1, fit2):
     weights /= np.sum(weights)
     samples = np.concatenate([fit1.samples, fit2.samples], axis=0)
     dists = np.concatenate([fit1.dists, fit2.dists])
-    return Fit(ms, weights, samples, dists)
+    return Population(ms, weights, samples, dists)
 
 
 def prepare_next_population(onFinalIteration, popSize, epsMin, M, fit):
@@ -636,7 +636,7 @@ def prepare_next_population(onFinalIteration, popSize, epsMin, M, fit):
                 weights /= np.sum(weights)
                 ms = ms[ms != m]
 
-    return Fit(ms, weights, samples, dists), eps
+    return Population(ms, weights, samples, dists), eps
 
 
 def print_header(popSize, T, numSumStats, numProcs):
