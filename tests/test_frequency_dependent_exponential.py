@@ -24,18 +24,18 @@ rg = rnd.default_rng(123)
 freqs, sevs = abc.simulate_claim_data(rg, T, freq, sev, θ_True)
 xData = abc.compute_psi(freqs, sevs, psi)
 
+# Specify model to fit
+params = ("λ", "β", "δ")
+prior = abc.IndependentUniformPrior([(0, 10), (0, 20), (-1, 1)], params)
+model = abc.Model("poisson", "frequency dependent exponential", psi, prior)
+epsMin = 6
+
 
 def test_simulation_size():
     assert len(xData) == T
 
 
 def test_full_model():
-    # Specify model to fit
-    params = ("λ", "β", "δ")
-    prior = abc.IndependentUniformPrior([(0, 10), (0, 20), (-1, 1)], params)
-    model = abc.Model("poisson", "frequency dependent exponential", psi, prior)
-
-    epsMin = 6
     fit = abc.smc(numIters, popSize, xData, model, epsMin=epsMin, verbose=True, seed=1)
     assert np.max(fit.dists) < epsMin
 
@@ -87,12 +87,7 @@ def simulate_poisson_exponential_sums_old_rng(theta, T):
     return aggClaims
 
 
-def test_full_model_using_custom_simulator_new_rng():
-    # This should give the exact same fit as in test_full_model.
-
-    # Specify model to fit
-    params = ("λ", "β", "δ")
-    prior = abc.IndependentUniformPrior([(0, 10), (0, 20), (-1, 1)], params)
+def test_simulator_with_new_rng():
     model = abc.SimulationModel(
         lambda rg, theta: simulate_poisson_exponential_sums_new_rng(
             rg, theta, len(xData)
@@ -100,7 +95,6 @@ def test_full_model_using_custom_simulator_new_rng():
         prior,
     )
 
-    epsMin = 6
     fit = abc.smc(
         numIters,
         popSize,
@@ -114,32 +108,19 @@ def test_full_model_using_custom_simulator_new_rng():
     assert np.max(fit.dists) < epsMin
 
 
-def test_full_model_using_custom_simulator_old_rng():
-    # This should give the exact same fit as in test_full_model.
-
-    # Specify model to fit
-    params = ("λ", "β", "δ")
-    prior = abc.IndependentUniformPrior([(0, 10), (0, 20), (-1, 1)], params)
+def test_simulator_with_old_rng():
     model = abc.SimulationModel(
         lambda theta: simulate_poisson_exponential_sums_old_rng(theta, len(xData)),
         prior,
     )
-
-    epsMin = 6
     fit = abc.smc(numIters, popSize, xData, model, epsMin=epsMin, verbose=True, seed=1)
     assert np.max(fit.dists) < epsMin
 
 
 def test_multiple_processes():
-    # Specify model to fit
-    params = ("λ", "β", "δ")
-    prior = abc.IndependentUniformPrior([(0, 10), (0, 20), (-1, 1)], params)
-    model = abc.Model("poisson", "frequency dependent exponential", psi, prior)
-
     numProcs = 4
-    epsMin = 6
 
-    # Check both strictPopulationSize=True and False work
+    # Check that both strictPopulationSize=True and False work
     fit = abc.smc(
         numIters,
         popSize,
@@ -169,7 +150,7 @@ def test_multiple_processes():
 
 if __name__ == "__main__":
     test_full_model()
-    test_full_model_using_custom_simulator_new_rng()
-    test_full_model_using_custom_simulator_old_rng()
+    test_simulator_with_new_rng()
+    test_simulator_with_old_rng()
     test_partially_observed_model()
     test_multiple_processes()
