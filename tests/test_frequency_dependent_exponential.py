@@ -97,7 +97,13 @@ def test_partially_observed_model():
 
 def test_full_model():
     print("\ntest_full_model()\n")
+
+    # Check that it will stop after reaching the epsilon target.
     fit = abc.smc(numIters, popSize, xData, model, epsMin=epsMin, verbose=True, seed=1)
+    check_fit(fit, popSize, epsMin, len(params))
+
+    # Also let it finish the specified number of iterations and check that is fine also.
+    fit = abc.smc(numIters, popSize, xData, model, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, len(params))
 
 

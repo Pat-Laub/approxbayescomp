@@ -47,7 +47,76 @@ Model = namedtuple(
 
 SimulationModel = namedtuple("SimulationModel", ["simulator", "prior"])
 
-Population = namedtuple("Population", ["models", "weights", "samples", "dists"])
+
+class Population(object):
+    """
+    A Population object stores a collection of particles in the
+    SMC procedure. Each particle is a potential theta parameter which
+    could explain the observed data. Each theta has a corresponding
+    weight, belongs to a specific model (as we may be fitting multiple
+    competing models simultaneously), and has an observed distance of
+    its fake data to the observed data.
+    """
+
+    def __init__(self, models, weights, samples, dists):
+        self.models = np.array(models)
+        self.weights = np.array(weights)
+        self.weights /= np.sum(weights)
+        if type(samples) == list:
+            self.samples = np.vstack(samples)
+        else:
+            self.samples = np.array(samples)
+        self.dists = np.array(dists)
+
+    def clone(self):
+        """
+        Create a deep copy of this population object.
+        """
+        return Population(
+            self.models.clone(),
+            self.weights.clone(),
+            self.samples.clone(),
+            self.dists.clone(),
+        )
+
+    def subpopulation(self, keep):
+        """
+        Create a subpopulation of particles from this population where we keep
+        only the particles at the locations of True in the supplied boolean vector.
+        """
+        return Population(
+            self.models[keep],
+            self.weights[keep],
+            self.samples[keep, :],
+            self.dists[keep],
+        )
+
+    def drop_worst_particle(self) -> float:
+        """
+        Throw away the particle in this population which has the largest
+        distance to the observed data.
+        """
+        dropIndex = np.argmax(self.dists)
+        eps = self.dists[dropIndex]
+        self.models = np.delete(self.models, dropIndex, 0)
+        self.weights = np.delete(self.weights, dropIndex, 0)
+        self.samples = np.delete(self.samples, dropIndex, 0)
+        self.dists = np.delete(self.dists, dropIndex, 0)
+        self.weights /= np.sum(self.weights)
+        return eps
+
+    def total_ess(self) -> int:
+        """
+        Calculate the total effective sample size (ESS) of this population.
+        That is, add together the ESS for each model under consideration.
+        """
+        totalESS = 0
+        for modelNum in set(self.models):
+            weightsForThisModel = self.weights[self.models == modelNum]
+            weightsForThisModel /= np.sum(weightsForThisModel)
+            totalESS += np.round(1 / np.sum(weightsForThisModel ** 2))
+        return int(totalESS)
+
 
 # Currently it's difficult to get numba to compile a whole class, and in particular
 # it can't handle the Prior classes. So, e.g. the 'SimpleIndependentUniformPrior' pulls
@@ -305,7 +374,7 @@ def sample_population(
     sumstats,
     distance,
     eps,
-    n,
+    popSize,
     numZerosData,
     ssData,
     T,
@@ -323,7 +392,7 @@ def sample_population(
 
     if t == 0:
         sample_first_iteration = joblib.delayed(_sample_one_first_iteration)
-        seeds = (s.generate_state(1)[0] for s in sg.spawn(n))
+        seeds = (s.generate_state(1)[0] for s in sg.spawn(popSize))
         results = parallel(
             sample_first_iteration(
                 seed,
@@ -338,8 +407,8 @@ def sample_population(
             for seed in seeds
         )
 
-        numSims = n
-        for i in range(n):
+        numSims = popSize
+        for i in range(popSize):
             m, theta, weight, dist, _ = results[i]
             ms.append(m)
             samples.append(theta)
@@ -357,7 +426,7 @@ def sample_population(
             # If we are only going to simulate exactly n particles,
             # then we create n batches which each simulate one particle
             # and they just keep going until they get that one particle.
-            numParallelTasks = n
+            numParallelTasks = popSize
             simulationBudget = np.inf
             stopTaskAfterNParticles = 1
         else:
@@ -375,7 +444,7 @@ def sample_population(
         # bar = tqdm(total=n, position=0, leave=False)
 
         numParticles = 0
-        while numParticles < n:
+        while numParticles < popSize:
             seeds = (s.generate_state(1)[0] for s in sg.spawn(numParallelTasks))
             results = parallel(
                 sample(
@@ -411,7 +480,7 @@ def sample_population(
 
             # If we collect less than n particles, then we can reduce
             # the simulation budget for the next time around
-            numParticlesLeft = n - numParticles
+            numParticlesLeft = popSize - numParticles
             if numParticlesLeft > 0 and not strictPopulationSize:
                 estNumSimsRequired = (
                     1.1 * numParticlesLeft * (numSims / max(numParticles, 1))
@@ -420,11 +489,6 @@ def sample_population(
 
         # bar.close()
 
-    ms = np.array(ms)
-    weights = np.array(weights)
-    weights /= np.sum(weights)
-    samples = np.vstack(samples)
-    dists = np.array(dists)
     fit = Population(ms, weights, samples, dists)
 
     # Combine the previous generation with this one.
@@ -561,35 +625,22 @@ def take_best_n_particles(fit, n):
     Create a subpopulation of particles by selecting the best n particles.
     A particle's quality is assessed by its distance value.
     """
-    ms, weights, samples, dists = fit.models, fit.weights, fit.samples, fit.dists
-    eps = np.sort(dists)[n - 1]
-    bestParticles = dists <= eps
-    ms = ms[bestParticles]
-    weights = weights[bestParticles]
-    weights /= np.sum(weights)
-    samples = samples[bestParticles, :]
-    dists = dists[bestParticles]
-    return Population(ms, weights, samples, dists), eps
+    eps = np.sort(fit.dists)[n - 1]
+    keep = fit.dists <= eps
+    return fit.subpopulation(keep), eps
 
 
-def reduce_population_size(fit, targetESS, epsMin, M):
+def reduce_population_size(fit, targetESS, epsMin):
     """
     Create a subpopulation of particles by discarding the worst particles until the
     ESS drops to a target value. A particle's quality is assessed by its distance value.
     """
-    ms, weights, samples, dists = fit.models, fit.weights, fit.samples, fit.dists
-    ESS = calculate_ess(M, ms, weights)
-    eps = np.max(dists)
+    totalESS = fit.total_ess()
+    eps = np.max(fit.dists)
 
-    # Go through each particle, starting at the furthest ones from the observed data.
-    for ind in reversed(np.argsort(dists)):
-        if np.sum(ESS) <= targetESS:
-            break
-
-        eps = dists[ind]
-        weights[ind] = 0
-        weights /= np.sum(weights)
-        ESS = calculate_ess(M, ms, weights)
+    while totalESS > targetESS:
+        eps = fit.drop_worst_particle()
+        totalESS = fit.total_ess()
 
         if eps < epsMin:
             # Don't bother aiming for an even better threshold
@@ -597,13 +648,7 @@ def reduce_population_size(fit, targetESS, epsMin, M):
             eps = epsMin
             break
 
-    ms = ms[weights > 0]
-    samples = samples[weights > 0, :]
-    dists = dists[weights > 0]
-    weights = weights[weights > 0]
-    weights /= np.sum(weights)
-
-    return Population(ms, weights, samples, dists), eps
+    return fit, eps
 
 
 def combine_populations(fit1, fit2):
@@ -627,7 +672,7 @@ def prepare_next_population(onFinalIteration, popSize, epsMin, M, fit):
     else:
         # Otherwise, throw away enough particles until the ESS
         # drops to popSize/2.
-        fit, eps = reduce_population_size(fit, popSize / 2, epsMin, M)
+        fit, eps = reduce_population_size(fit, popSize / 2, epsMin)
 
     # Also, if not finished SMC iterations, throw away models
     # which only have a couple of samples as these will just crash
