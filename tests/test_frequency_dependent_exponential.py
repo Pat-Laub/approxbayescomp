@@ -1,6 +1,7 @@
 import approxbayescomp as abc
 import numpy as np
 import numpy.random as rnd
+from dtaidistance import dtw
 from numba import njit
 
 numIters = 5
@@ -148,9 +149,30 @@ def test_multiple_processes():
     assert np.max(fit.dists) < epsMin
 
 
+def test_dynamic_time_warping():
+    model = abc.SimulationModel(
+        lambda theta: simulate_poisson_exponential_sums_old_rng(theta, len(xData)),
+        prior,
+    )
+    epsMin = 150
+    fit = abc.smc(
+        numIters,
+        popSize,
+        xData,
+        model,
+        sumstats=abc.identity,
+        distance=dtw.distance,
+        epsMin=epsMin,
+        verbose=True,
+        seed=1,
+    )
+    assert np.max(fit.dists) < epsMin
+
+
 if __name__ == "__main__":
     test_full_model()
     test_simulator_with_new_rng()
     test_simulator_with_old_rng()
     test_partially_observed_model()
     test_multiple_processes()
+    test_dynamic_time_warping()

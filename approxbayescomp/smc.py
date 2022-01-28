@@ -2,6 +2,7 @@
 """
 @author: Pat and Pierre-O
 """
+import inspect
 from collections import namedtuple
 from time import time
 
@@ -276,7 +277,10 @@ def sample_particles(
         if not num_zeros_match(numZerosData, xFake):
             continue
 
-        dist = distance(ssData, sumstats(xFake))
+        if "max_dist" in inspect.signature(distance).parameters:
+            dist = distance(ssData, sumstats(xFake), max_dist=eps)
+        else:
+            dist = distance(ssData, sumstats(xFake))
 
         if dist < eps:
             thetaLogWeight = np.log(priorVal) - gaussian_kde_logpdf(
