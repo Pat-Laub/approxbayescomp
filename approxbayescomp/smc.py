@@ -219,6 +219,14 @@ def _compute_psi(freqs, sevs, psi_name, psi_param):
             xs[r] = np.sum(sevs[i : i + n])
             i += n
 
+    elif psi_name == "max":
+        for r, n in enumerate(freqs):
+            if n > 0:
+                xs[r] = np.max(sevs[i : i + n])
+            else:
+                xs[r] = 0
+            i += n
+
     elif psi_name == "GSL":
         for r, n in enumerate(freqs):
             xs[r] = np.maximum(np.sum(sevs[i : i + n]) - psi_param, 0)

@@ -5,7 +5,7 @@ from dtaidistance import dtw
 from numba import njit
 
 
-def simulate_poisson_exponential_sums_new_rng(rg, theta, T):
+def simulate_dependent_poisson_exponential_sums_new_rng(rg, theta, T):
     lam = theta[0]
     thetaSev = theta[1:]
     freqs = rg.poisson(lam, size=T)
@@ -14,27 +14,23 @@ def simulate_poisson_exponential_sums_new_rng(rg, theta, T):
 
     aggClaims = np.empty(T, np.float64)
     for t in range(T):
-        R = freqs[t]
-        claims = scale * np.exp(cor * R) * rg.exponential(size=R)
+        claims = scale * np.exp(cor * freqs[t]) * rg.exponential(size=freqs[t])
         aggClaims[t] = np.sum(claims)
 
     return aggClaims
 
 
 @njit()
-def simulate_poisson_exponential_sums_old_rng(theta, T):
+def simulate_dependent_poisson_exponential_sums_old_rng(theta, T):
     lam = theta[0]
     thetaSev = theta[1:]
-    freqs = rnd.poisson(lam, size=T)
-
+    freqs = rnd.poisson(lam, size=T)  # TODO: Why does the size argument JIT here?
     scale, cor = thetaSev
 
-    aggClaims = np.empty(T, np.float64)
+    aggClaims = np.zeros(T)
     for t in range(T):
-        claims = np.empty(freqs[t], np.float64)
         for i in range(freqs[t]):
-            claims[i] = scale * np.exp(cor * freqs[t]) * rnd.exponential()
-        aggClaims[t] = np.sum(claims)
+            aggClaims[t] += scale * np.exp(cor * freqs[t]) * rnd.exponential()
 
     return aggClaims
 
@@ -110,7 +106,7 @@ def test_full_model():
 def test_simulator_with_new_rng():
     print("\ntest_simulator_with_new_rng()\n")
     model = abc.SimulationModel(
-        lambda rg, theta: simulate_poisson_exponential_sums_new_rng(
+        lambda rg, theta: simulate_dependent_poisson_exponential_sums_new_rng(
             rg, theta, len(xData)
         ),
         prior,
@@ -132,7 +128,9 @@ def test_simulator_with_new_rng():
 def test_simulator_with_old_rng():
     print("\ntest_simulator_with_old_rng()\n")
     model = abc.SimulationModel(
-        lambda theta: simulate_poisson_exponential_sums_old_rng(theta, len(xData)),
+        lambda theta: simulate_dependent_poisson_exponential_sums_old_rng(
+            theta, len(xData)
+        ),
         prior,
     )
     fit = abc.smc(numIters, popSize, xData, model, epsMin=epsMin, verbose=True, seed=1)
@@ -174,7 +172,9 @@ def test_multiple_processes():
 def test_dynamic_time_warping():
     print("\ntest_dynamic_time_warping()\n")
     model = abc.SimulationModel(
-        lambda theta: simulate_poisson_exponential_sums_old_rng(theta, len(xData)),
+        lambda theta: simulate_dependent_poisson_exponential_sums_old_rng(
+            theta, len(xData)
+        ),
         prior,
     )
     epsMin = 150

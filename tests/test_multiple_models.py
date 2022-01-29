@@ -1,0 +1,252 @@
+import approxbayescomp as abc
+import numpy as np
+import numpy.random as rnd
+from dtaidistance import dtw
+from numba import njit
+
+
+def simulate_poisson_exponential_maxs_new_rng(rg, theta, T):
+    lam = theta[0]
+    thetaSev = theta[1:]
+    freqs = rg.poisson(lam, size=T)
+    scale = thetaSev
+    maxClaims = np.empty(T, np.float64)
+    for t in range(T):
+        claims = scale * rg.exponential(size=freqs[t])
+        if freqs[t] > 0:
+            maxClaims[t] = np.max(claims)
+        else:
+            maxClaims[t] = 0
+    return maxClaims
+
+
+def simulate_geometric_exponential_maxs_new_rng(rg, theta, T):
+    p = theta[0]
+    thetaSev = theta[1:]
+    freqs = rg.geometric(1 - p, size=T)
+    scale = thetaSev
+    maxClaims = np.empty(T, np.float64)
+    for t in range(T):
+        claims = scale * rg.exponential(size=freqs[t])
+        if freqs[t] > 0:
+            maxClaims[t] = np.max(claims)
+        else:
+            maxClaims[t] = 0
+    return maxClaims
+
+
+@njit()
+def simulate_poisson_exponential_maxs_old_rng(theta, T):
+    lam = theta[0]
+    scale = theta[1]
+
+    maxClaims = np.zeros(T)
+    for t in range(T):
+        numClaims = rnd.poisson(lam)
+        for i in range(numClaims):
+            claim = scale * rnd.exponential()
+            if claim > maxClaims[t]:
+                maxClaims[t] = claim
+
+    return maxClaims
+
+
+@njit()
+def simulate_geometric_exponential_maxs_old_rng(theta, T):
+    p = theta[0]
+    scale = theta[1]
+
+    maxClaims = np.zeros(T)
+    for t in range(T):
+        numClaims = rnd.geometric(1 - p)
+        for i in range(numClaims):
+            claim = scale * rnd.exponential()
+            if claim > maxClaims[t]:
+                maxClaims[t] = claim
+
+    return maxClaims
+
+
+numIters = 5
+numItersData = 10
+popSize = 100
+
+# Frequency-Loss Model
+λ = 4
+μ = 0.2
+θ_True = λ, μ
+
+freq = "poisson"
+sev = "exponential"
+psi = abc.Psi("max")
+
+# Simulate some data to fit
+T = 50
+
+rg = rnd.default_rng(123)
+freqs, sevs = abc.simulate_claim_data(rg, T, freq, sev, θ_True)
+xData = abc.compute_psi(freqs, sevs, psi)
+
+# Specify models to fit
+prior1 = abc.IndependentUniformPrior([(0, 10), (0, 20)], ("λ", "μ"))
+model1 = abc.Model("poisson", "exponential", psi, prior1)
+prior2 = abc.IndependentUniformPrior([(0, 1), (0, 20)], ("p", "μ"))
+model2 = abc.Model("geometric", "exponential", psi, prior2)
+
+# TODO: Allow differing numTheta for each model.
+
+models = (model1, model2)
+
+epsMin = 0.5
+
+
+def check_fit(fit, popSize, epsMin, numTheta=2):
+    assert fit.models.shape == (popSize,)
+    assert fit.weights.shape == (popSize,)
+    assert fit.samples.shape == (popSize, numTheta)
+    assert fit.dists.shape == (popSize,)
+    assert np.all((fit.models == 0) + (fit.models == 1))
+    assert np.abs(np.sum(fit.weights) - 1) < 1e-5
+    assert np.max(fit.dists) < epsMin
+
+
+def test_simulation_size():
+    assert len(xData) == T
+
+
+def test_partially_observed_model():
+    # Try fitting the same model but with the frequencies observed
+    print("\ntest_partially_observed_model()\n")
+    prior = abc.IndependentUniformPrior([(0, 20)], ("μ"))
+    model = abc.Model(freqs, "exponential", psi, prior)
+
+    epsMin = 0.1
+    fit = abc.smc(
+        numItersData, popSize, xData, model, epsMin=epsMin, verbose=True, seed=1
+    )
+    check_fit(fit, popSize, epsMin, 1)
+
+
+def test_full_model():
+    print("\ntest_full_model()\n")
+
+    # Check that it will stop after reaching the epsilon target.
+    fit = abc.smc(numIters, popSize, xData, models, epsMin=epsMin, verbose=True, seed=1)
+    check_fit(fit, popSize, epsMin)
+
+    # Also let it finish the specified number of iterations and check that is fine also.
+    fit = abc.smc(numIters, popSize, xData, models, verbose=True, seed=1)
+    check_fit(fit, popSize, epsMin)
+
+
+def test_simulator_with_new_rng():
+    print("\ntest_simulator_with_new_rng()\n")
+    model1 = abc.SimulationModel(
+        lambda rg, theta: simulate_poisson_exponential_maxs_new_rng(
+            rg, theta, len(xData)
+        ),
+        prior1,
+    )
+    model2 = abc.SimulationModel(
+        lambda rg, theta: simulate_geometric_exponential_maxs_new_rng(
+            rg, theta, len(xData)
+        ),
+        prior2,
+    )
+    models = (model1, model2)
+
+    fit = abc.smc(
+        numIters,
+        popSize,
+        xData,
+        models,
+        epsMin=epsMin,
+        verbose=True,
+        seed=1,
+        simulatorUsesOldNumpyRNG=False,
+    )
+    check_fit(fit, popSize, epsMin)
+
+
+def test_simulator_with_old_rng():
+    print("\ntest_simulator_with_old_rng()\n")
+    model1 = abc.SimulationModel(
+        lambda theta: simulate_poisson_exponential_maxs_old_rng(theta, len(xData)),
+        prior1,
+    )
+    model2 = abc.SimulationModel(
+        lambda theta: simulate_geometric_exponential_maxs_old_rng(theta, len(xData)),
+        prior2,
+    )
+    models = (model1, model2)
+
+    fit = abc.smc(numIters, popSize, xData, models, epsMin=epsMin, verbose=True, seed=1)
+    check_fit(fit, popSize, epsMin)
+
+
+def test_multiple_processes():
+    print("\ntest_multiple_processes()\n")
+    numProcs = 4
+
+    # Check that both strictPopulationSize=True and False work
+    fit = abc.smc(
+        numIters,
+        popSize,
+        xData,
+        models,
+        numProcs=numProcs,
+        epsMin=epsMin,
+        verbose=True,
+        seed=1,
+        strictPopulationSize=True,
+    )
+    check_fit(fit, popSize, epsMin)
+
+    fit = abc.smc(
+        numIters,
+        popSize,
+        xData,
+        models,
+        numProcs=numProcs,
+        epsMin=epsMin,
+        verbose=True,
+        seed=1,
+        strictPopulationSize=False,
+    )
+    check_fit(fit, popSize, epsMin)
+
+
+def test_dynamic_time_warping():
+    print("\ntest_dynamic_time_warping()\n")
+    model1 = abc.SimulationModel(
+        lambda theta: simulate_poisson_exponential_maxs_old_rng(theta, len(xData)),
+        prior1,
+    )
+    model2 = abc.SimulationModel(
+        lambda theta: simulate_geometric_exponential_maxs_old_rng(theta, len(xData)),
+        prior2,
+    )
+    models = (model1, model2)
+
+    epsMin = 5
+    fit = abc.smc(
+        numIters,
+        popSize,
+        xData,
+        models,
+        sumstats=abc.identity,
+        distance=dtw.distance,
+        epsMin=epsMin,
+        verbose=True,
+        seed=1,
+    )
+    check_fit(fit, popSize, epsMin)
+
+
+if __name__ == "__main__":
+    test_partially_observed_model()
+    test_full_model()
+    test_simulator_with_new_rng()
+    test_simulator_with_old_rng()
+    test_multiple_processes()
+    test_dynamic_time_warping()
