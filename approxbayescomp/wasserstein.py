@@ -1,22 +1,27 @@
 import numpy as np
 from hilbertcurve.hilbertcurve import HilbertCurve  # type: ignore
-from numba import njit  # type: ignore
+from numba import float64, njit  # type: ignore
 from scipy.optimize import linear_sum_assignment  # type: ignore
 from scipy.spatial.distance import cdist  # type: ignore
 
 
-@njit(nogil=True)
+@njit(float64[:](float64[:]), nogil=True)
 def wass_sumstats(x):
     return np.sort(x)
 
 
-@njit(nogil=True)
-def wass_dist(sortedData, sortedFake, p=1.0):
+@njit(float64(float64[:], float64[:]), nogil=True)
+def wass_dist(sortedData, sortedFake):
+    n = len(sortedData)
+    return np.linalg.norm(sortedData - sortedFake, 1) / n
+
+
+@njit(float64(float64[:], float64[:], float64), nogil=True)
+def wass_dist_p(sortedData, sortedFake, p):
     n = len(sortedData)
     return np.linalg.norm(sortedData - sortedFake, p) / n
 
 
-@njit(nogil=True)
 def identity(x):
     return x
 

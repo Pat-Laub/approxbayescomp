@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import numpy.random as rnd
-from numba import njit  # type: ignore
+from numba import float64, int64, njit  # type: ignore
 from scipy import stats  # type: ignore
 
 
-@njit(nogil=True)
+@njit(int64(float64[:]), nogil=True)
 def sample_discrete_dist(weights):
     u = rnd.random()
     cdf_i = 0
@@ -17,7 +17,7 @@ def sample_discrete_dist(weights):
     return maxIndex
 
 
-@njit(nogil=True)
+@njit(float64[:](float64[:], float64[:]), nogil=True)
 def sample_uniform_dist(lower, width):
     d = len(lower)
     theta = np.empty(d, np.float64)
@@ -30,7 +30,7 @@ def sample_multivariate_normal(rg, mu, L):
     return mu + L @ rg.normal(size=len(mu))
 
 
-@njit(nogil=True)
+# @njit(float64[:](float64[:], float64[:,:]), nogil=True)
 def sample_multivariate_normal_old_rng(mu, L):
     Z = np.empty(mu.size, np.float64)
     for i in range(mu.size):
@@ -39,7 +39,7 @@ def sample_multivariate_normal_old_rng(mu, L):
 
 
 # Unused version which handles any number of states in the chain
-@njit(nogil=True)
+@njit(int64[:](float64[:], float64[:, :], int64), nogil=True)
 def markov_chain(p_0, P, N):
     X = np.empty(N, dtype=np.int64)
     X[0] = sample_discrete_dist(p_0)
@@ -50,7 +50,7 @@ def markov_chain(p_0, P, N):
     return X
 
 
-@njit(nogil=True)
+@njit(int64[:](float64, float64, float64, int64), nogil=True)
 def two_state_markov_chain(p_00, P_00, P_11, N):
     X = np.empty(N, np.int64)
 

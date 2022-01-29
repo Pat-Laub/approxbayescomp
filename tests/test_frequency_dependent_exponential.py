@@ -3,7 +3,7 @@ import numpy as np
 import numpy.random as rnd
 import pandas as pd
 from dtaidistance import dtw
-from numba import njit
+from numba import float64, int64, njit
 
 
 def simulate_dependent_poisson_exponential_sums_new_rng(rg, theta, T):
@@ -21,7 +21,7 @@ def simulate_dependent_poisson_exponential_sums_new_rng(rg, theta, T):
     return aggClaims
 
 
-@njit()
+@njit(float64[:](float64[:], int64), nogil=True)
 def simulate_dependent_poisson_exponential_sums_old_rng(theta, T):
     lam = theta[0]
     thetaSev = theta[1:]
@@ -44,7 +44,7 @@ popSize = 100
 λ = 4
 β = 2
 δ = 0.2
-θ_True = λ, β, δ
+trueTheta = λ, β, δ
 
 sev = "frequency dependent exponential"
 freq = "poisson"
@@ -54,7 +54,7 @@ psi = abc.Psi("sum")  # Aggregation process
 T = 50
 
 rg = rnd.default_rng(123)
-freqs, sevs = abc.simulate_claim_data(rg, T, freq, sev, θ_True)
+freqs, sevs = abc.simulate_claim_data(rg, T, freq, sev, trueTheta)
 xData = abc.compute_psi(freqs, sevs, psi)
 
 print(f"Number of zeros in the data: {np.sum(xData == 0)}")

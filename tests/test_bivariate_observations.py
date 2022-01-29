@@ -6,7 +6,6 @@ from dtaidistance import dtw
 from numba import njit
 
 numIters = 5
-numItersData = 10
 popSize = 100
 
 # Frequency-Loss Model
@@ -27,7 +26,7 @@ rg = rnd.default_rng(1234)
 claimsData = abc.simulate_claim_data(rg, T, freq, sev, trueTheta)
 
 # Simulating the observed data
-psi = abc.Psi("sum")
+psi = abc.Psi("GSL", 25)
 
 xData1 = abc.compute_psi(claimsData[0][0], claimsData[0][1], psi)
 xData2 = abc.compute_psi(claimsData[1][0], claimsData[1][1], psi)

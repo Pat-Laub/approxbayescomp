@@ -7,7 +7,7 @@ numpy arrays.
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.random as rnd
-from numba import njit  # type: ignore
+from numba import float64, int64, njit  # type: ignore
 from numpy.random import default_rng
 from scipy.stats import gaussian_kde  # type: ignore
 
@@ -114,7 +114,7 @@ def iqr(data, weights):
 # Extracted from filterpy library
 # https://github.com/rlabbe/filterpy/blob/master/filterpy/monte_carlo/resampling.py
 # NOTE: It crashes if weights doesn't add to one.
-@njit(nogil=True)
+@njit(int64[:](float64[:]), nogil=True)
 def systematic_resample(weights):
     """Performs the systemic resampling algorithm used by particle filters.
 

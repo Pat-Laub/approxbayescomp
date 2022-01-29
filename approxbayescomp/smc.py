@@ -5,14 +5,17 @@
 from __future__ import annotations
 
 import inspect
+import warnings
 from collections import namedtuple
 from time import time
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import joblib  # type: ignore
 import numpy as np
 import numpy.random as rnd
-from numba import njit  # type: ignore
+from numba import float64, int64, njit, void  # type: ignore
+from numba.core.errors import NumbaPerformanceWarning
+from numba.core.types import unicode_type
 from numpy.random import SeedSequence, default_rng  # type: ignore
 from scipy.stats import gaussian_kde  # type: ignore
 from tqdm.auto import tqdm  # type: ignore
@@ -26,17 +29,12 @@ from .simulate import (
 from .wasserstein import wass_dist, wass_sumstats
 from .weighted import systematic_resample
 
-try:
-    PANDAS_INSTALLED = False
-    import pandas
-
-    PANDAS_INSTALLED = True
-except ModuleNotFoundError:
-    pass
+# Suppress a numba.PerformanceWarning
+warnings.filterwarnings("ignore", category=NumbaPerformanceWarning)
 
 
-@njit(nogil=True)
-def numba_seed(seed: int):
+@njit(void(int64), nogil=True)
+def numba_seed(seed):
     rnd.seed(seed)
 
 
@@ -211,7 +209,7 @@ def compute_psi(freqs: np.ndarray, sevs: np.ndarray, psi):
     return _compute_psi(freqs, sevs, psi.name, psi.param)
 
 
-@njit(nogil=True)
+@njit(float64[:](int64[:], float64[:], unicode_type, float64), nogil=True)
 def _compute_psi(freqs, sevs, psi_name, psi_param):
     xs = -np.ones(len(freqs))
     i = 0
@@ -248,7 +246,7 @@ def _compute_psi(freqs, sevs, psi_name, psi_param):
     return xs
 
 
-@njit(nogil=True)
+@njit(float64(float64[:], float64[:], float64[:], float64), nogil=True)
 def uniform_pdf(theta, lower, upper, normConst):
     for i in range(len(theta)):
         if theta[i] <= lower[i] or theta[i] >= upper[i]:
@@ -256,7 +254,12 @@ def uniform_pdf(theta, lower, upper, normConst):
     return normConst
 
 
-@njit(nogil=True)
+@njit(
+    float64(
+        float64[:], int64, int64, float64[:, :], float64[:], float64[:, :], float64
+    ),
+    nogil=True,
+)
 def gaussian_kde_logpdf(x, d, n, dataset, weights, inv_cov, log_det):
     """
     Evaluate the log of the estimated pdf on a provided set of points.
@@ -745,6 +748,7 @@ def smc(
     systematic=False,
     strictPopulationSize=False,
     simulatorUsesOldNumpyRNG=True,
+    showProgressBar=False,
 ):
     if numProcs == 1:
         strictPopulationSize = True
@@ -765,7 +769,6 @@ def smc(
     totalSimulationCost = 0
     interrupted = False
     eps = np.inf
-    showProgressBar = not verbose
 
     # To keep the linter happy, declare some variables as None temporarily
     numSims = None

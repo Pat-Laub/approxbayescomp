@@ -2,7 +2,7 @@ import approxbayescomp as abc
 import numpy as np
 import numpy.random as rnd
 from dtaidistance import dtw
-from numba import njit
+from numba import float64, int64, njit
 
 
 def simulate_poisson_exponential_maxs_new_rng(rg, theta, T):
@@ -35,7 +35,7 @@ def simulate_geometric_exponential_maxs_new_rng(rg, theta, T):
     return maxClaims
 
 
-@njit()
+@njit(float64[:](float64[:], int64), nogil=True)
 def simulate_poisson_exponential_maxs_old_rng(theta, T):
     lam = theta[0]
     scale = theta[1]
@@ -51,7 +51,7 @@ def simulate_poisson_exponential_maxs_old_rng(theta, T):
     return maxClaims
 
 
-@njit()
+@njit(float64[:](float64[:], int64), nogil=True)
 def simulate_geometric_exponential_maxs_old_rng(theta, T):
     p = theta[0]
     scale = theta[1]
@@ -74,7 +74,7 @@ popSize = 100
 # Frequency-Loss Model
 λ = 4
 μ = 0.2
-θ_True = λ, μ
+trueTheta = λ, μ
 
 freq = "poisson"
 sev = "exponential"
@@ -84,7 +84,7 @@ psi = abc.Psi("max")
 T = 50
 
 rg = rnd.default_rng(123)
-freqs, sevs = abc.simulate_claim_data(rg, T, freq, sev, θ_True)
+freqs, sevs = abc.simulate_claim_data(rg, T, freq, sev, trueTheta)
 xData = abc.compute_psi(freqs, sevs, psi)
 
 # Specify models to fit
