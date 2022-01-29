@@ -1,9 +1,9 @@
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from .plot import draw_prior, plot_posteriors, weighted_distplot
 from .prior import IndependentPrior, IndependentUniformPrior
 from .simulate import simulate_claim_data, simulate_claim_sizes
-from .smc import Model, Population, Psi, SimulationModel, compute_psi, smc
+from .smc import Model, Population, Psi, compute_psi, smc
 from .wasserstein import (
     identity,
     wass_2Ddist,

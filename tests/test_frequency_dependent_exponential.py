@@ -59,7 +59,7 @@ xData = abc.compute_psi(freqs, sevs, psi)
 # Specify model to fit
 params = ("λ", "β", "δ")
 prior = abc.IndependentUniformPrior([(0, 10), (0, 20), (-1, 1)], params)
-model = abc.Model("poisson", "frequency dependent exponential", psi, prior)
+model = abc.Model("poisson", "frequency dependent exponential", psi)
 epsMin = 6
 
 
@@ -82,11 +82,11 @@ def test_partially_observed_model():
     print("\ntest_partially_observed_model()\n")
     params = ("β", "δ")
     prior = abc.IndependentUniformPrior([(0, 20), (-1, 1)], params)
-    model = abc.Model(freqs, "frequency dependent exponential", psi, prior)
+    model = abc.Model(freqs, "frequency dependent exponential", psi)
 
     epsMin = 3
     fit = abc.smc(
-        numItersData, popSize, xData, model, epsMin=epsMin, verbose=True, seed=1
+        numItersData, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1
     )
     check_fit(fit, popSize, epsMin, len(params))
 
@@ -95,28 +95,30 @@ def test_full_model():
     print("\ntest_full_model()\n")
 
     # Check that it will stop after reaching the epsilon target.
-    fit = abc.smc(numIters, popSize, xData, model, epsMin=epsMin, verbose=True, seed=1)
+    fit = abc.smc(
+        numIters, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1
+    )
     check_fit(fit, popSize, epsMin, len(params))
 
     # Also let it finish the specified number of iterations and check that is fine also.
-    fit = abc.smc(numIters, popSize, xData, model, verbose=True, seed=1)
+    fit = abc.smc(numIters, popSize, xData, model, prior, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, len(params))
 
 
 def test_simulator_with_new_rng():
     print("\ntest_simulator_with_new_rng()\n")
-    model = abc.SimulationModel(
-        lambda rg, theta: simulate_dependent_poisson_exponential_sums_new_rng(
+
+    def model(rg, theta):
+        return simulate_dependent_poisson_exponential_sums_new_rng(
             rg, theta, len(xData)
-        ),
-        prior,
-    )
+        )
 
     fit = abc.smc(
         numIters,
         popSize,
         xData,
         model,
+        prior,
         epsMin=epsMin,
         verbose=True,
         seed=1,
@@ -127,13 +129,13 @@ def test_simulator_with_new_rng():
 
 def test_simulator_with_old_rng():
     print("\ntest_simulator_with_old_rng()\n")
-    model = abc.SimulationModel(
-        lambda theta: simulate_dependent_poisson_exponential_sums_old_rng(
-            theta, len(xData)
-        ),
-        prior,
+
+    def model(theta):
+        return simulate_dependent_poisson_exponential_sums_old_rng(theta, len(xData))
+
+    fit = abc.smc(
+        numIters, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1
     )
-    fit = abc.smc(numIters, popSize, xData, model, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, len(params))
 
 
@@ -147,6 +149,7 @@ def test_multiple_processes():
         popSize,
         xData,
         model,
+        prior,
         numProcs=numProcs,
         epsMin=epsMin,
         verbose=True,
@@ -160,6 +163,7 @@ def test_multiple_processes():
         popSize,
         xData,
         model,
+        prior,
         numProcs=numProcs,
         epsMin=epsMin,
         verbose=True,
@@ -171,18 +175,17 @@ def test_multiple_processes():
 
 def test_dynamic_time_warping():
     print("\ntest_dynamic_time_warping()\n")
-    model = abc.SimulationModel(
-        lambda theta: simulate_dependent_poisson_exponential_sums_old_rng(
-            theta, len(xData)
-        ),
-        prior,
-    )
+
+    def model(theta):
+        return simulate_dependent_poisson_exponential_sums_old_rng(theta, len(xData))
+
     epsMin = 150
     fit = abc.smc(
         numIters,
         popSize,
         xData,
         model,
+        prior,
         sumstats=abc.identity,
         distance=dtw.distance,
         epsMin=epsMin,

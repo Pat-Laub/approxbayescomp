@@ -44,11 +44,9 @@ Psi = namedtuple("Psi", ["name", "param"], defaults=["sum", 0.0])
 
 Model = namedtuple(
     "Model",
-    ["freq", "sev", "psi", "prior", "obsFreqs"],
-    defaults=["ones", None, None, None, None],
+    ["freq", "sev", "psi", "obsFreqs"],
+    defaults=["ones", None, None, None],
 )
-
-SimulationModel = namedtuple("SimulationModel", ["simulator", "prior"])
 
 
 def kde(data: np.ndarray, weights: np.ndarray, bw: float = np.sqrt(2)):
@@ -296,7 +294,15 @@ def index_generator(rg, weights):
 
 
 def _sample_one_first_iteration(
-    seed, models, modelPrior, sumstats, distance, ssData, T, simulatorUsesOldNumpyRNG
+    seed,
+    modelPrior,
+    models,
+    priors,
+    sumstats,
+    distance,
+    ssData,
+    T,
+    simulatorUsesOldNumpyRNG,
 ):
     rg = default_rng(seed)
     rnd.seed(seed)
@@ -306,7 +312,8 @@ def _sample_one_first_iteration(
     # and accept everthing, so the code is a bit simpler.
     m = sample_discrete_dist(modelPrior)
     model = models[m]
-    theta = sample_uniform_dist(model.prior.lower, model.prior.width)
+    prior = priors[m]
+    theta = sample_uniform_dist(prior.lower, prior.width)
 
     if type(model) == Model:
         claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta)
@@ -325,9 +332,9 @@ def _sample_one_first_iteration(
             )
     else:
         if simulatorUsesOldNumpyRNG:
-            xFake = model.simulator(theta)
+            xFake = model(theta)
         else:
-            xFake = model.simulator(rg, theta)
+            xFake = model(rg, theta)
 
     dist = distance(ssData, sumstats(xFake))
 
@@ -350,8 +357,9 @@ def sample_particles(
     seed,
     simulationBudget,
     stopTaskAfterNParticles,
-    models,
     modelPrior,
+    models,
+    priors,
     kdes,
     sumstats,
     distance,
@@ -385,6 +393,7 @@ def sample_particles(
             m = next(modelGen)
 
         model = models[m]
+        prior = priors[m]
         K = kdes[m]
         if K is None:
             continue
@@ -400,9 +409,7 @@ def sample_particles(
 
         theta = sample_multivariate_normal(rg, mu, K.L)
 
-        priorVal = uniform_pdf(
-            theta, model.prior.lower, model.prior.upper, model.prior.normConst
-        )
+        priorVal = uniform_pdf(theta, prior.lower, prior.upper, prior.normConst)
         if priorVal <= 0:
             continue
 
@@ -422,9 +429,9 @@ def sample_particles(
                 )
         else:
             if simulatorUsesOldNumpyRNG:
-                xFake = model.simulator(theta)
+                xFake = model(theta)
             else:
-                xFake = model.simulator(rg, theta)
+                xFake = model(rg, theta)
 
         if not num_zeros_match(numZerosData, xFake):
             continue
@@ -451,8 +458,9 @@ def sample_population(
     sg,
     t,
     parallel,
-    models,
     modelPrior,
+    models,
+    priors,
     prevFit,
     sumstats,
     distance,
@@ -479,8 +487,9 @@ def sample_population(
         results = parallel(
             sample_first_iteration(
                 seed,
-                models,
                 modelPrior,
+                models,
+                priors,
                 sumstats,
                 distance,
                 ssData,
@@ -532,8 +541,9 @@ def sample_population(
                     seed,
                     simulationBudget,
                     stopTaskAfterNParticles,
-                    models,
                     modelPrior,
+                    models,
+                    priors,
                     kdes,
                     sumstats,
                     distance,
@@ -581,16 +591,17 @@ def sample_population(
 
 def smc_setup(
     obs,
-    models,
-    sumstats,
     modelPrior,
-    numProcs,
+    models,
+    priors,
+    sumstats,
     matchZeros,
 ):
 
-    if type(models) == Model or type(models) == SimulationModel:
-        models = [models]
+    if type(models) == Model or callable(models):
         modelPrior = np.array([1.0])
+        models = [models]
+        priors = [priors]
 
     M = len(models)
 
@@ -619,31 +630,31 @@ def smc_setup(
     else:
         numSumStats = 1
 
-    newPriors = [
+    newPriors = tuple(
         SimpleIndependentUniformPrior(
-            model.prior.lower,
-            model.prior.upper,
-            model.prior.widths,
-            model.prior.normConst,
+            prior.lower,
+            prior.upper,
+            prior.widths,
+            prior.normConst,
         )
-        for model in models
-    ]
+        for prior in priors
+    )
 
     newModels = []
-    for model, newPrior in zip(models, newPriors):
+    for model in models:
         if type(model) == Model:
             if model.psi:
                 newPsi = model.psi
             else:
                 newPsi = Psi("severities")
-            newModel = Model(model.freq, model.sev, newPsi, newPrior)
+            newModel = Model(model.freq, model.sev, newPsi)
         else:
-            newModel = SimulationModel(model.simulator, newPrior)
+            newModel = model
         newModels.append(newModel)
 
-    models = tuple(newModels)
+    newModels = tuple(newModels)
 
-    return T, M, models, modelPrior, numProcs, numSumStats, numZerosData, ssData
+    return T, modelPrior, newPriors, newModels, numSumStats, numZerosData, ssData
 
 
 def take_best_n_particles(fit: Population, n: int) -> Tuple[Population, float]:
@@ -743,6 +754,7 @@ def smc(
     popSize,
     obs,
     models,
+    priors,
     sumstats=wass_sumstats,
     distance=wass_dist,
     modelPrior=None,
@@ -760,12 +772,12 @@ def smc(
     if numProcs == 1:
         strictPopulationSize = True
 
-    T, M, models, modelPrior, numProcs, numSumStats, numZerosData, ssData = smc_setup(
+    T, modelPrior, priors, models, numSumStats, numZerosData, ssData = smc_setup(
         obs,
-        models,
-        sumstats,
         modelPrior,
-        numProcs,
+        models,
+        priors,
+        sumstats,
         matchZeros,
     )
 
@@ -795,8 +807,9 @@ def smc(
                     sg,
                     t,
                     parallel,
-                    models,
                     modelPrior,
+                    models,
+                    priors,
                     prevFit,
                     sumstats,
                     distance,

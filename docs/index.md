@@ -59,21 +59,21 @@ The equivalent version for this example would be:
 
 ```python
 import numpy as np
+import numpy.random as rnd
 
-def simulate_aggregate_claims(rg, theta, T):
+def simulate_aggregate_claims(theta, T):
     """
-    Generate T observations from the model specified by theta
-    using the random number generator rg.
+    Generate T observations from the model specified by theta.
     """
     lam, mu, sigma = theta
-    freqs = rg.poisson(lam, size=T)
+    freqs = rnd.poisson(lam, size=T)
     aggClaims = np.empty(T, np.float64)
     for t in range(T):
-        aggClaims[t] = np.sum(rg.lognormal(mu, sigma, size=freqs[t]))
+        aggClaims[t] = np.sum(rnd.lognormal(mu, sigma, size=freqs[t]))
     return aggClaims
 
-simulator = lambda rg, theta: simulate_aggregate_claims(rg, theta, len(obsData))
-model = abc.SimulationModel(simulator, prior)
+def model(theta):
+    return simulate_aggregate_claims(theta, len(obsData)) 
 ```
 
 Modifying just these lines will generate the identical output as the example above.
