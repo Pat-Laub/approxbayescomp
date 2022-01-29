@@ -99,6 +99,9 @@ def simulate_claim_sizes(rg, R, sev, theta_sev):
     elif sev == "lognormal":
         mu, sigma = theta_sev
         return rg.lognormal(mu, sigma, size=R)
+    elif sev == "pareto":
+        scale, tail = theta_sev
+        return scale * (1 + rg.pareto(tail, size=R))
     elif sev == "dependent lognormal":  # exponential of gaussian vector
         if R == 0:
             return np.array([])
@@ -175,16 +178,9 @@ def seasonal_poisson(rg, T, a, gamma, c):
 
 def cyclical_poisson(rg, T, a, b, c):
     t = np.arange(T)
-    mus = (
-        a
-        + b
-        + b
-        * (np.cos(2 * np.pi * t * c) - np.cos(2 * np.pi * (t + 1) * c))
-        / 2
-        / np.pi
-        / c
-    )
-    freqs = rg.poisson(mus)
+    cosTerms = np.cos(2 * np.pi * c * t) - np.cos(2 * np.pi * (t + 1) * c)
+    freqMean = a + b + (b / (2 * np.pi * c)) * cosTerms
+    freqs = rg.poisson(freqMean)
     return freqs
 
 

@@ -1,4 +1,4 @@
-site_name: ABC Python Package
+site_name: approxbayescomp Python Package
 
 nav:
   - Home: index.md
