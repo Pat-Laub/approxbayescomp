@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+@author: Patrick Laub and Pierre-O Goffard
+"""
 import numpy as np
 from hilbertcurve.hilbertcurve import HilbertCurve  # type: ignore
 from numba import float64, njit  # type: ignore
@@ -16,7 +20,10 @@ def wass_dist(sortedData, sortedFake):
     return np.linalg.norm(sortedData - sortedFake, 1) / n
 
 
-@njit(float64(float64[:], float64[:], float64), nogil=True)
+@njit(
+    # float64(float64[:], float64[:], float64),
+    nogil=True
+)
 def wass_dist_p(sortedData, sortedFake, p):
     n = len(sortedData)
     return np.linalg.norm(sortedData - sortedFake, p) / n

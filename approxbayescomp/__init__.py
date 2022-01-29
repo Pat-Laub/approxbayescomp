@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+@author: Patrick Laub and Pierre-O Goffard
+"""
 __version__ = "0.2.0"
 
 from .plot import draw_prior, plot_posteriors, weighted_distplot

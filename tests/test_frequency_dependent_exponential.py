@@ -118,6 +118,15 @@ def test_match_zeros():
     check_fit(fit, popSize, epsMin, prior.dim)
 
 
+def test_systematic_sampling():
+    # Check that the systematic sampling option is working.
+    print("\ntest_systematic_sampling()\n")
+    fit = abc.smc(
+        numIters, popSize, xData, model, prior, systematic=True, verbose=True, seed=1
+    )
+    check_fit(fit, popSize, epsMin, prior.dim)
+
+
 def test_simulator_with_new_rng():
     print("\ntest_simulator_with_new_rng()\n")
 
@@ -189,6 +198,12 @@ def test_strict_population_size():
     check_fit(fit, popSize, epsMin, prior.dim)
 
 
+def test_list_input():
+    print("\ntest_list_input()\n")
+    fit = abc.smc(numIters, popSize, list(xData), model, prior, verbose=True, seed=1)
+    check_fit(fit, popSize, epsMin, prior.dim)
+
+
 def test_pandas_input():
     print("\ntest_pandas_input()\n")
     df = pd.DataFrame({"x": xData})
@@ -226,9 +241,11 @@ if __name__ == "__main__":
     test_full_model()
     test_eps_min()
     test_match_zeros()
+    test_systematic_sampling()
     test_simulator_with_new_rng()
     test_simulator_with_old_rng()
     test_multiple_processes()
     test_strict_population_size()
+    test_list_input()
     test_pandas_input()
     test_dynamic_time_warping()

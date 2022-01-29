@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+"""
+@author: Patrick Laub and Pierre-O Goffard
+"""
 import numpy as np
 import numpy.random as rnd
 from numba import float64, int64, njit  # type: ignore
@@ -39,7 +42,8 @@ def sample_multivariate_normal_old_rng(mu, L):
 
 
 # Unused version which handles any number of states in the chain
-@njit(int64[:](float64[:], float64[:, :], int64), nogil=True)
+# @njit(int64[:](float64[:], float64[:, :], int64), nogil=True)
+@njit(nogil=True)
 def markov_chain(p_0, P, N):
     X = np.empty(N, dtype=np.int64)
     X[0] = sample_discrete_dist(p_0)
@@ -50,7 +54,8 @@ def markov_chain(p_0, P, N):
     return X
 
 
-@njit(int64[:](float64, float64, float64, int64), nogil=True)
+# @njit(int64[:](float64, float64, float64, int64), nogil=True)
+@njit(nogil=True)
 def two_state_markov_chain(p_00, P_00, P_11, N):
     X = np.empty(N, np.int64)
 

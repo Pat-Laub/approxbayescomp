@@ -1,8 +1,12 @@
-# Original version from:
-#  https://github.com/nudomarinero/wquantiles/blob/master/weighted.py
+# -*- coding: utf-8 -*-
 """
 Library to compute weighted quantiles, including the weighted median, of
 numpy arrays.
+
+@author: Patrick Laub and Pierre-O Goffard
+
+Original version from:
+    https://github.com/nudomarinero/wquantiles/blob/master/weighted.py
 """
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,14 +14,6 @@ import numpy.random as rnd
 from numba import float64, int64, njit  # type: ignore
 from numpy.random import default_rng
 from scipy.stats import gaussian_kde  # type: ignore
-
-try:
-    PANDAS_INSTALLED = False
-    import pandas
-
-    PANDAS_INSTALLED = True
-except ModuleNotFoundError:
-    pass
 
 
 def quantile_1D(data, weights, quantile):
@@ -114,7 +110,8 @@ def iqr(data, weights):
 # Extracted from filterpy library
 # https://github.com/rlabbe/filterpy/blob/master/filterpy/monte_carlo/resampling.py
 # NOTE: It crashes if weights doesn't add to one.
-@njit(int64[:](float64[:]), nogil=True)
+# @njit(int64[:](float64[:]), nogil=True)
+@njit(nogil=True)
 def systematic_resample(weights):
     """Performs the systemic resampling algorithm used by particle filters.
 
@@ -152,8 +149,7 @@ def systematic_resample(weights):
 
 
 def resample(rng, weights, repeats=10):
-    if PANDAS_INSTALLED and type(weights) == pandas.core.series.Series:
-        weights = weights.to_numpy()
+    weights = np.asarray(weights)
     allIndices = []
     for rep in range(repeats):
         allIndices.append(systematic_resample(weights))
@@ -168,8 +164,7 @@ def resample(rng, weights, repeats=10):
 def resample_and_kde(data, weights, cut=3, clip=(-np.inf, np.inf), seed=1, repeats=10):
     # Resample the data
     rng = default_rng(seed)
-    if PANDAS_INSTALLED and type(weights) == pandas.core.series.Series:
-        weights = weights.to_numpy()
+    weights = np.asarray(weights)
     dataResampled = data[resample(rng, weights, repeats=repeats)]
 
     # Choose support for KDE

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-@author: Pat and Pierre-O
+@author: Patrick Laub and Pierre-O Goffard
 """
 import numpy as np
 import scipy.stats as st  # type: ignore

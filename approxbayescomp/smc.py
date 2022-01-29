@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-@author: Pat and Pierre-O
+@author: Patrick Laub and Pierre-O Goffard
 """
 from __future__ import annotations
 
@@ -255,9 +255,9 @@ def uniform_pdf(theta, lower, upper, normConst):
 
 
 @njit(
-    float64(
-        float64[:], int64, int64, float64[:, :], float64[:], float64[:, :], float64
-    ),
+    # float64(
+    #     float64[:], int64, int64, float64[:, :], float64[:], float64[:, :], float64
+    # ),
     nogil=True,
 )
 def gaussian_kde_logpdf(x, d, n, dataset, weights, inv_cov, log_det):

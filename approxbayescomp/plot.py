@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-@author: Pat and Pierre-O
+@author: Patrick Laub and Pierre-O Goffard
 """
 import matplotlib.pyplot as plt
 import numpy as np
