@@ -48,6 +48,15 @@ Model = namedtuple(
 SimulationModel = namedtuple("SimulationModel", ["simulator", "prior"])
 
 
+def kde(data: np.ndarray, weights: np.ndarray, bw: float = np.sqrt(2)):
+    return gaussian_kde(data.T, weights=weights, bw_method=bw)
+
+
+SimpleKDE = namedtuple(
+    "SimpleKDE", ["dataset", "weights", "d", "n", "inv_cov", "L", "log_det"]
+)
+
+
 class Population(object):
     """
     A Population object stores a collection of particles in the
@@ -58,7 +67,7 @@ class Population(object):
     its fake data to the observed data.
     """
 
-    def __init__(self, models, weights, samples, dists):
+    def __init__(self, models, weights, samples, dists, M):
         self.models = np.array(models)
         self.weights = np.array(weights)
         self.weights /= np.sum(weights)
@@ -67,16 +76,27 @@ class Population(object):
         else:
             self.samples = np.array(samples)
         self.dists = np.array(dists)
+        self.M = M
+
+    def size(self):
+        return len(self.models)
+
+    def model_sizes(self):
+        return tuple(np.sum(self.models == m) for m in range(self.M))
+
+    def model_weights(self):
+        return tuple(np.sum(self.weights[self.models == m]) for m in range(self.M))
 
     def clone(self):
         """
         Create a deep copy of this population object.
         """
         return Population(
-            self.models.clone(),
-            self.weights.clone(),
-            self.samples.clone(),
-            self.dists.clone(),
+            self.models.copy(),
+            self.weights.copy(),
+            self.samples.copy(),
+            self.dists.copy(),
+            self.M,
         )
 
     def subpopulation(self, keep):
@@ -89,33 +109,91 @@ class Population(object):
             self.weights[keep],
             self.samples[keep, :],
             self.dists[keep],
+            self.M,
         )
 
-    def drop_worst_particle(self) -> float:
+    def combine(self, other):
+        """
+        Combine this population with another to create one larger population.
+        """
+        ms = np.concatenate([self.models, other.models])
+        weights = np.concatenate([self.weights, other.weights])
+        samples = np.concatenate([self.samples, other.samples], axis=0)
+        dists = np.concatenate([self.dists, other.dists])
+        return Population(ms, weights, samples, dists, self.M)
+
+    def drop_worst_particle(self):
         """
         Throw away the particle in this population which has the largest
         distance to the observed data.
         """
         dropIndex = np.argmax(self.dists)
-        eps = self.dists[dropIndex]
         self.models = np.delete(self.models, dropIndex, 0)
         self.weights = np.delete(self.weights, dropIndex, 0)
         self.samples = np.delete(self.samples, dropIndex, 0)
         self.dists = np.delete(self.dists, dropIndex, 0)
         self.weights /= np.sum(self.weights)
-        return eps
+
+    def drop_small_models(self):
+        """
+        Throw away the particles which correspond to models which
+        have an extremely small population size.
+        """
+        modelPopulations = self.model_sizes()
+        modelWeights = self.model_weights()
+
+        for m in range(self.M):
+            if modelPopulations[m] < 5 or modelWeights[m] == 0:
+                keep = self.models != m
+                self.models = self.models[keep]
+                self.weights = self.weights[keep]
+                self.weights /= np.sum(self.weights)
+                self.samples = self.samples[keep, :]
+                self.dists = self.dists[keep]
+
+    def ess(self):
+        """
+        Calculate the effective sample size (ESS) for each model in this population.
+        """
+        essPerModel = []
+        for modelNum in set(self.models):
+            weightsForThisModel = self.weights[self.models == modelNum]
+            weightsForThisModel /= np.sum(weightsForThisModel)
+            essPerModel.append(int(np.round(1 / np.sum(weightsForThisModel ** 2))))
+        return tuple(essPerModel)
 
     def total_ess(self) -> int:
         """
         Calculate the total effective sample size (ESS) of this population.
         That is, add together the ESS for each model under consideration.
         """
-        totalESS = 0
-        for modelNum in set(self.models):
-            weightsForThisModel = self.weights[self.models == modelNum]
-            weightsForThisModel /= np.sum(weightsForThisModel)
-            totalESS += np.round(1 / np.sum(weightsForThisModel ** 2))
-        return int(totalESS)
+        return sum(self.ess())
+
+    def fit_kdes(self):
+        """
+        Fit a kernel density estimator (KDE) to each model's subpopulation
+        in this population. Return all the KDEs in tuple. If there isn't
+        enough data for some model to fit a KDE, that entry will be None.
+        """
+        kdes = []
+
+        for m in range(self.M):
+            samplesForThisModel = self.samples[self.models == m, :]
+            weightsForThisModel = self.weights[self.models == m]
+
+            K = None
+            if samplesForThisModel.shape[0] >= 5:
+                try:
+                    K = kde(samplesForThisModel, weightsForThisModel)
+                    L = np.linalg.cholesky(K.covariance)
+                    log_det = 2 * np.log(np.diag(L)).sum()
+                    K = SimpleKDE(K.dataset, K.weights, K.d, K.n, K.inv_cov, L, log_det)
+                except np.linalg.LinAlgError:
+                    pass
+
+            kdes.append(K)
+
+        return tuple(kdes)
 
 
 # Currently it's difficult to get numba to compile a whole class, and in particular
@@ -125,13 +203,6 @@ class Population(object):
 SimpleIndependentUniformPrior = namedtuple(
     "SimpleIndependentUniformPrior", ["lower", "upper", "width", "normConst"]
 )
-SimpleKDE = namedtuple(
-    "SimpleKDE", ["dataset", "weights", "d", "n", "inv_cov", "L", "log_det"]
-)
-
-
-def kde(data: np.ndarray, weights: np.ndarray, bw: float = np.sqrt(2)):
-    return gaussian_kde(data.T, weights=weights, bw_method=bw)
 
 
 def compute_psi(freqs: np.ndarray, sevs: np.ndarray, psi):
@@ -418,9 +489,7 @@ def sample_population(
     else:
         sample = joblib.delayed(sample_particles)
 
-        kdes = fit_all_kdes(
-            prevFit.models, prevFit.samples, prevFit.weights, len(models)
-        )
+        kdes = prevFit.fit_kdes()
 
         if strictPopulationSize:
             # If we are only going to simulate exactly n particles,
@@ -489,68 +558,13 @@ def sample_population(
 
         # bar.close()
 
-    fit = Population(ms, weights, samples, dists)
+    fit = Population(ms, weights, samples, dists, len(models))
 
     # Combine the previous generation with this one.
     if recycling and prevFit is not None:
-        fit = combine_populations(prevFit, fit)
+        fit = fit.combine(prevFit)
 
     return fit, numSims
-
-
-def group_samples_by_model(ms, samples, M):
-    d = {m: [] for m in range(M)}
-
-    for m, sample in zip(ms, samples):
-        d[m].append(sample)
-
-    for m in range(M):
-        if len(d[m]) > 0:
-            d[m] = np.vstack(d[m])
-        else:
-            d[m] = np.array([])
-
-    return d
-
-
-def fit_all_kdes(ms, samples, weights, M):
-    simpleKDEs = []
-
-    samplesGrouped = group_samples_by_model(ms, samples, M)
-
-    for m in range(M):
-        samples_m = samplesGrouped[m]
-
-        K = None
-        if samples_m.shape[0] >= 5:
-            try:
-                K = kde(samples_m, weights[ms == m])
-                L = np.linalg.cholesky(K.covariance)
-                log_det = 2 * np.log(np.diag(L)).sum()
-                K = SimpleKDE(K.dataset, K.weights, K.d, K.n, K.inv_cov, L, log_det)
-            except np.linalg.LinAlgError:
-                pass
-
-        simpleKDEs.append(K)
-
-    return tuple(simpleKDEs)
-
-
-def calculate_ess(M, ms, weights):
-    # Calculate effective sample size for each model
-    if M == 1:
-        ESS = 1 / np.sum(weights ** 2)
-    else:
-        ESS = []
-        for m in range(M):
-            if (ms == m).sum() > 0:
-                ESS.append(
-                    np.sum(weights[ms == m]) ** 2 / np.sum(weights[ms == m] ** 2)
-                )
-            else:
-                ESS.append(0)
-
-    return np.round(ESS).astype(int)
 
 
 def smc_setup(
@@ -635,11 +649,13 @@ def reduce_population_size(fit, targetESS, epsMin):
     Create a subpopulation of particles by discarding the worst particles until the
     ESS drops to a target value. A particle's quality is assessed by its distance value.
     """
+    fit = fit.clone()
     totalESS = fit.total_ess()
     eps = np.max(fit.dists)
 
     while totalESS > targetESS:
-        eps = fit.drop_worst_particle()
+        fit.drop_worst_particle()
+        eps = np.max(fit.dists)
         totalESS = fit.total_ess()
 
         if eps < epsMin:
@@ -651,47 +667,27 @@ def reduce_population_size(fit, targetESS, epsMin):
     return fit, eps
 
 
-def combine_populations(fit1, fit2):
-    ms = np.concatenate([fit1.models, fit2.models])
-    weights = np.concatenate([fit1.weights, fit2.weights])
-    weights /= np.sum(weights)
-    samples = np.concatenate([fit1.samples, fit2.samples], axis=0)
-    dists = np.concatenate([fit1.dists, fit2.dists])
-    return Population(ms, weights, samples, dists)
-
-
-def prepare_next_population(onFinalIteration, popSize, epsMin, M, fit):
+def prepare_next_population(onFinalIteration, popSize, epsMin, fit):
     """
     After sampling a round in the sequential Monte Carlo algorithm, we
     discard particles in order to create a smaller population which represent
-    a better fit to the data.
+    a better fit to the data. The original population is unaltered.
     """
     if np.sort(fit.dists)[popSize - 1] < epsMin or onFinalIteration:
         # Take the best popSize particles to be the final population.
-        fit, eps = take_best_n_particles(fit, popSize)
+        nextFit, eps = take_best_n_particles(fit, popSize)
     else:
         # Otherwise, throw away enough particles until the ESS
         # drops to popSize/2.
-        fit, eps = reduce_population_size(fit, popSize / 2, epsMin)
+        nextFit, eps = reduce_population_size(fit, popSize / 2, epsMin)
 
     # Also, if not finished SMC iterations, throw away models
     # which only have a couple of samples as these will just crash
     # the KDE function.
-    ms, weights, samples, dists = fit.models, fit.weights, fit.samples, fit.dists
-    modelPopulations = [np.sum(ms == m) for m in range(M)]
-    modelWeights = np.array([np.sum(weights[ms == m]) for m in range(M)])
-    modelWeights /= np.sum(modelWeights)
-
     if not onFinalIteration:
-        for m in range(M):
-            if modelPopulations[m] < 5 or modelWeights[m] == 0:
-                samples = samples[ms != m, :]
-                dists = dists[ms != m]
-                weights = weights[ms != m]
-                weights /= np.sum(weights)
-                ms = ms[ms != m]
+        nextFit.drop_small_models()
 
-    return Population(ms, weights, samples, dists), eps
+    return nextFit, eps
 
 
 def print_header(popSize, T, numSumStats, numProcs):
@@ -702,41 +698,24 @@ def print_header(popSize, T, numSumStats, numProcs):
     )
 
 
-def print_update(
-    t,
-    eps,
-    elapsed,
-    popSizeBefore,
-    ESSBefore,
-    numSims,
-    totalSimulationCost,
-    M,
-    ms,
-    weights,
-):
+def print_update(t, eps, elapsed, numSims, totalSimulationCost, fit, nextFit):
     """
     After each sequential Monte Carlo iteration, print out a summary
     of the just-sampled population, and of the subpopulation which was
     prepared for the next round.
     """
-    popSizeAfter = len(ms)
-    ESSAfter = calculate_ess(M, ms, weights)
-    modelPopulations = [np.sum(ms == m) for m in range(M)]
-    modelWeights = [np.sum(weights[ms == m]) for m in range(M)]
-    modelWeights = np.round(np.array(modelWeights) / np.sum(modelWeights), 2)
-
     update = (
         f"Finished SMC iteration {t}, " if t > 0 else "Finished sampling from prior, "
     )
     update += f"eps = {eps:.2f}, "
     elapsedMins = np.round(elapsed / 60, 1)
     update += f"time = {np.round(elapsed)}s / {elapsedMins}m, "
-    update += f"popSize = {popSizeBefore} -> {popSizeAfter}, "
-    update += f"ESS = {ESSBefore} -> {ESSAfter}, "
+    update += f"popSize = {fit.size()} -> {nextFit.size()}, "
+    update += f"ESS = {fit.ess()} -> {nextFit.ess()}, "
     update += f"# sims = {numSims}, total # sims = {totalSimulationCost}"
-    if M > 1:
-        update += f"\n\tmodel populations = {modelPopulations}, "
-        update += f"model weights = {modelWeights}"
+    if fit.M > 1:
+        update += f"\n\tmodel populations = {fit.model_sizes()}, "
+        update += f"model weights = {np.round(fit.model_weights(), 2)}"
     print(update)
 
 
@@ -826,32 +805,21 @@ def smc(
             elapsed = time() - startTime
             totalSimulationCost += numSims
 
-            # Store the original population size and effective sample size
-            # before we start throwing away particles.
-            if verbose:
-                popSizeBefore = len(fit.models)
-                ESSBefore = calculate_ess(M, fit.models, fit.weights)
-
-            fit, eps = prepare_next_population(
-                t == numIters or interrupted, popSize, epsMin, M, fit
+            nextFit, eps = prepare_next_population(
+                t == numIters or interrupted, popSize, epsMin, fit
             )
 
             if verbose:
                 print_update(
-                    t,
-                    eps,
-                    elapsed,
-                    popSizeBefore,
-                    ESSBefore,
-                    numSims,
-                    totalSimulationCost,
-                    M,
-                    fit.models,
-                    fit.weights,
+                    t, eps, elapsed, numSims, totalSimulationCost, fit, nextFit
                 )
 
             if interrupted:
+                fit = prevFit
                 break
+
+            fit = nextFit
+            prevFit = nextFit
 
             if eps < epsMin:
                 if verbose:
@@ -860,8 +828,6 @@ def smc(
 
             if showProgressBar and t > 0:
                 bar.update(1)
-
-            prevFit = fit
 
     if showProgressBar:
         bar.close()
