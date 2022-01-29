@@ -1,6 +1,7 @@
 import approxbayescomp as abc
 import numpy as np
 import numpy.random as rnd
+import pandas as pd
 from dtaidistance import dtw
 from numba import njit
 
@@ -56,6 +57,8 @@ rg = rnd.default_rng(123)
 freqs, sevs = abc.simulate_claim_data(rg, T, freq, sev, θ_True)
 xData = abc.compute_psi(freqs, sevs, psi)
 
+print(f"Number of zeros in the data: {np.sum(xData == 0)}")
+
 # Specify model to fit
 params = ("λ", "β", "δ")
 prior = abc.IndependentUniformPrior([(0, 10), (0, 20), (-1, 1)], params)
@@ -88,21 +91,31 @@ def test_partially_observed_model():
     fit = abc.smc(
         numItersData, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1
     )
-    check_fit(fit, popSize, epsMin, len(params))
+    check_fit(fit, popSize, epsMin, prior.dim)
 
 
 def test_full_model():
     print("\ntest_full_model()\n")
+    fit = abc.smc(numIters, popSize, xData, model, prior, verbose=True, seed=1)
+    check_fit(fit, popSize, epsMin, prior.dim)
 
-    # Check that it will stop after reaching the epsilon target.
+
+def test_eps_min():
+    # Check that SMC will stop early after reaching the epsilon target.
+    print("\ntest_eps_min()\n")
     fit = abc.smc(
         numIters, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1
     )
-    check_fit(fit, popSize, epsMin, len(params))
+    check_fit(fit, popSize, epsMin, prior.dim)
 
-    # Also let it finish the specified number of iterations and check that is fine also.
-    fit = abc.smc(numIters, popSize, xData, model, prior, verbose=True, seed=1)
-    check_fit(fit, popSize, epsMin, len(params))
+
+def test_match_zeros():
+    # Check that matchZeros=True is working.
+    print("\ntest_match_zeros()\n")
+    fit = abc.smc(
+        numIters, popSize, xData, model, prior, matchZeros=True, verbose=True, seed=1
+    )
+    check_fit(fit, popSize, epsMin, prior.dim)
 
 
 def test_simulator_with_new_rng():
@@ -124,7 +137,7 @@ def test_simulator_with_new_rng():
         seed=1,
         simulatorUsesOldNumpyRNG=False,
     )
-    check_fit(fit, popSize, epsMin, len(params))
+    check_fit(fit, popSize, epsMin, prior.dim)
 
 
 def test_simulator_with_old_rng():
@@ -136,14 +149,31 @@ def test_simulator_with_old_rng():
     fit = abc.smc(
         numIters, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1
     )
-    check_fit(fit, popSize, epsMin, len(params))
+    check_fit(fit, popSize, epsMin, prior.dim)
 
 
 def test_multiple_processes():
     print("\ntest_multiple_processes()\n")
     numProcs = 4
 
-    # Check that both strictPopulationSize=True and False work
+    fit = abc.smc(
+        numIters,
+        popSize,
+        xData,
+        model,
+        prior,
+        numProcs=numProcs,
+        epsMin=epsMin,
+        verbose=True,
+        seed=1,
+    )
+    check_fit(fit, popSize, epsMin, prior.dim)
+
+
+def test_strict_population_size():
+    # Check that strictPopulationSize=True works
+    print("\ntest_strict_population_size()\n")
+    numProcs = 4
     fit = abc.smc(
         numIters,
         popSize,
@@ -156,21 +186,17 @@ def test_multiple_processes():
         seed=1,
         strictPopulationSize=True,
     )
-    check_fit(fit, popSize, epsMin, len(params))
+    check_fit(fit, popSize, epsMin, prior.dim)
+
+
+def test_pandas_input():
+    print("\ntest_pandas_input()\n")
+    df = pd.DataFrame({"x": xData})
 
     fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        model,
-        prior,
-        numProcs=numProcs,
-        epsMin=epsMin,
-        verbose=True,
-        seed=1,
-        strictPopulationSize=False,
+        numIters, popSize, df["x"], model, prior, epsMin=epsMin, verbose=True, seed=1
     )
-    check_fit(fit, popSize, epsMin, len(params))
+    check_fit(fit, popSize, epsMin, prior.dim)
 
 
 def test_dynamic_time_warping():
@@ -192,13 +218,17 @@ def test_dynamic_time_warping():
         verbose=True,
         seed=1,
     )
-    check_fit(fit, popSize, epsMin, len(params))
+    check_fit(fit, popSize, epsMin, prior.dim)
 
 
 if __name__ == "__main__":
     test_partially_observed_model()
     test_full_model()
+    test_eps_min()
+    test_match_zeros()
     test_simulator_with_new_rng()
     test_simulator_with_old_rng()
     test_multiple_processes()
+    test_strict_population_size()
+    test_pandas_input()
     test_dynamic_time_warping()

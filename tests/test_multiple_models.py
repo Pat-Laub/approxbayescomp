@@ -131,15 +131,24 @@ def test_partially_observed_model():
 
 def test_full_model():
     print("\ntest_full_model()\n")
+    fit = abc.smc(numIters, popSize, xData, models, priors, verbose=True, seed=1)
+    check_fit(fit, popSize, epsMin)
 
+
+def test_eps_min():
     # Check that it will stop after reaching the epsilon target.
+    print("\ntest_eps_min()\n")
     fit = abc.smc(
         numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1
     )
     check_fit(fit, popSize, epsMin)
 
-    # Also let it finish the specified number of iterations and check that is fine also.
-    fit = abc.smc(numIters, popSize, xData, models, priors, verbose=True, seed=1)
+
+def test_match_zeros():
+    print("\ntest_match_zeros()\n")
+    fit = abc.smc(
+        numIters, popSize, xData, models, priors, matchZeros=True, verbose=True, seed=1
+    )
     check_fit(fit, popSize, epsMin)
 
 
@@ -189,7 +198,24 @@ def test_multiple_processes():
     print("\ntest_multiple_processes()\n")
     numProcs = 4
 
-    # Check that both strictPopulationSize=True and False work
+    fit = abc.smc(
+        numIters,
+        popSize,
+        xData,
+        models,
+        priors,
+        numProcs=numProcs,
+        epsMin=epsMin,
+        verbose=True,
+        seed=1,
+    )
+    check_fit(fit, popSize, epsMin)
+
+
+def test_strict_population_size():
+    # Check that strictPopulationSize=True works
+    print("\ntest_strict_population_size()\n")
+    numProcs = 4
     fit = abc.smc(
         numIters,
         popSize,
@@ -201,20 +227,6 @@ def test_multiple_processes():
         verbose=True,
         seed=1,
         strictPopulationSize=True,
-    )
-    check_fit(fit, popSize, epsMin)
-
-    fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        models,
-        priors,
-        numProcs=numProcs,
-        epsMin=epsMin,
-        verbose=True,
-        seed=1,
-        strictPopulationSize=False,
     )
     check_fit(fit, popSize, epsMin)
 
@@ -249,7 +261,10 @@ def test_dynamic_time_warping():
 if __name__ == "__main__":
     test_partially_observed_model()
     test_full_model()
+    test_eps_min()
+    test_match_zeros()
     test_simulator_with_new_rng()
     test_simulator_with_old_rng()
     test_multiple_processes()
+    test_strict_population_size()
     test_dynamic_time_warping()

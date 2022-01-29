@@ -341,18 +341,6 @@ def _sample_one_first_iteration(
     return m, theta, 1.0, dist, 1
 
 
-@njit(nogil=True)
-def num_zeros_match(numZerosData, xFake):
-    if numZerosData >= 0:
-        numZerosFake = 0
-        for xFake_i in xFake:
-            if xFake_i == 0:
-                numZerosFake += 1
-
-        return numZerosData == numZerosFake
-    return True
-
-
 def sample_particles(
     seed,
     simulationBudget,
@@ -364,6 +352,7 @@ def sample_particles(
     sumstats,
     distance,
     eps,
+    matchZeros,
     numZerosData,
     ssData,
     T,
@@ -433,7 +422,7 @@ def sample_particles(
             else:
                 xFake = model(rg, theta)
 
-        if not num_zeros_match(numZerosData, xFake):
+        if matchZeros and not np.all(np.sum(xFake == 0, axis=0) == numZerosData):
             continue
 
         if "max_dist" in inspect.signature(distance).parameters:
@@ -466,6 +455,7 @@ def sample_population(
     distance,
     eps,
     popSize,
+    matchZeros,
     numZerosData,
     ssData,
     T,
@@ -548,6 +538,7 @@ def sample_population(
                     sumstats,
                     distance,
                     eps,
+                    matchZeros,
                     numZerosData,
                     ssData,
                     T,
@@ -595,8 +586,9 @@ def smc_setup(
     models,
     priors,
     sumstats,
-    matchZeros,
 ):
+    obs = np.asarray(obs, dtype=float).squeeze()
+    T = obs.shape[0]
 
     if type(models) == Model or callable(models):
         modelPrior = np.array([1.0])
@@ -608,21 +600,7 @@ def smc_setup(
     if not modelPrior:
         modelPrior = np.ones(M) / M
 
-    if (
-        type(models[0]) == Model
-        and type(models[0].freq) == str
-        and models[0].freq.startswith("bivariate")
-    ):
-        T = obs.shape[0]
-        numZerosData = (
-            (np.sum(obs[:, 0] == 0), np.sum(obs[:, 1] == 0)) if matchZeros else (-1, -1)
-        )
-    else:
-        T = len(obs)
-        numZerosData = np.sum(obs == 0) if matchZeros else -1
-
-        if PANDAS_INSTALLED and type(obs) == pandas.core.series.Series:
-            obs = obs.to_numpy()
+    numZerosData = np.sum(obs == 0, axis=0)
 
     ssData = sumstats(obs)
     if not np.isscalar(ssData) and len(ssData) > 1:
@@ -654,7 +632,7 @@ def smc_setup(
 
     newModels = tuple(newModels)
 
-    return T, modelPrior, newPriors, newModels, numSumStats, numZerosData, ssData
+    return obs, T, modelPrior, newPriors, newModels, numSumStats, numZerosData, ssData
 
 
 def take_best_n_particles(fit: Population, n: int) -> Tuple[Population, float]:
@@ -768,17 +746,15 @@ def smc(
     strictPopulationSize=False,
     simulatorUsesOldNumpyRNG=True,
 ):
-    obs = np.asarray(obs)
     if numProcs == 1:
         strictPopulationSize = True
 
-    T, modelPrior, priors, models, numSumStats, numZerosData, ssData = smc_setup(
+    obs, T, modelPrior, priors, models, numSumStats, numZerosData, ssData = smc_setup(
         obs,
         modelPrior,
         models,
         priors,
         sumstats,
-        matchZeros,
     )
 
     sg = SeedSequence(seed)
@@ -815,6 +791,7 @@ def smc(
                     distance,
                     eps,
                     popSize,
+                    matchZeros,
                     numZerosData,
                     ssData,
                     T,
