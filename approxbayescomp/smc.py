@@ -2,9 +2,12 @@
 """
 @author: Pat and Pierre-O
 """
+from __future__ import annotations
+
 import inspect
 from collections import namedtuple
 from time import time
+from typing import Optional, Tuple, Union
 
 import joblib  # type: ignore
 import numpy as np
@@ -12,7 +15,7 @@ import numpy.random as rnd
 from numba import njit  # type: ignore
 from numpy.random import SeedSequence, default_rng  # type: ignore
 from scipy.stats import gaussian_kde  # type: ignore
-from tqdm.auto import tqdm
+from tqdm.auto import tqdm  # type: ignore
 
 from .simulate import (
     sample_discrete_dist,
@@ -67,7 +70,7 @@ class Population(object):
     its fake data to the observed data.
     """
 
-    def __init__(self, models, weights, samples, dists, M):
+    def __init__(self, models, weights, samples, dists, M) -> None:
         self.models = np.array(models)
         self.weights = np.array(weights)
         self.weights /= np.sum(weights)
@@ -78,16 +81,16 @@ class Population(object):
         self.dists = np.array(dists)
         self.M = M
 
-    def size(self):
+    def size(self) -> int:
         return len(self.models)
 
-    def model_sizes(self):
+    def model_sizes(self) -> Tuple[int, ...]:
         return tuple(np.sum(self.models == m) for m in range(self.M))
 
-    def model_weights(self):
+    def model_weights(self) -> Tuple[float, ...]:
         return tuple(np.sum(self.weights[self.models == m]) for m in range(self.M))
 
-    def clone(self):
+    def clone(self) -> Population:
         """
         Create a deep copy of this population object.
         """
@@ -99,7 +102,7 @@ class Population(object):
             self.M,
         )
 
-    def subpopulation(self, keep):
+    def subpopulation(self, keep) -> Population:
         """
         Create a subpopulation of particles from this population where we keep
         only the particles at the locations of True in the supplied boolean vector.
@@ -112,7 +115,7 @@ class Population(object):
             self.M,
         )
 
-    def combine(self, other):
+    def combine(self, other) -> Population:
         """
         Combine this population with another to create one larger population.
         """
@@ -122,7 +125,7 @@ class Population(object):
         dists = np.concatenate([self.dists, other.dists])
         return Population(ms, weights, samples, dists, self.M)
 
-    def drop_worst_particle(self):
+    def drop_worst_particle(self) -> None:
         """
         Throw away the particle in this population which has the largest
         distance to the observed data.
@@ -134,7 +137,7 @@ class Population(object):
         self.dists = np.delete(self.dists, dropIndex, 0)
         self.weights /= np.sum(self.weights)
 
-    def drop_small_models(self):
+    def drop_small_models(self) -> None:
         """
         Throw away the particles which correspond to models which
         have an extremely small population size.
@@ -151,7 +154,7 @@ class Population(object):
                 self.samples = self.samples[keep, :]
                 self.dists = self.dists[keep]
 
-    def ess(self):
+    def ess(self) -> Tuple[int, ...]:
         """
         Calculate the effective sample size (ESS) for each model in this population.
         """
@@ -160,6 +163,7 @@ class Population(object):
             weightsForThisModel = self.weights[self.models == modelNum]
             weightsForThisModel /= np.sum(weightsForThisModel)
             essPerModel.append(int(np.round(1 / np.sum(weightsForThisModel ** 2))))
+
         return tuple(essPerModel)
 
     def total_ess(self) -> int:
@@ -169,7 +173,7 @@ class Population(object):
         """
         return sum(self.ess())
 
-    def fit_kdes(self):
+    def fit_kdes(self) -> Tuple[Optional[SimpleKDE], ...]:
         """
         Fit a kernel density estimator (KDE) to each model's subpopulation
         in this population. Return all the KDEs in tuple. If there isn't
@@ -185,10 +189,10 @@ class Population(object):
             if samplesForThisModel.shape[0] >= 5:
                 try:
                     K = kde(samplesForThisModel, weightsForThisModel)
-                    L = np.linalg.cholesky(K.covariance)
+                    L = np.linalg.cholesky(K.covariance)  # type: ignore
                     log_det = 2 * np.log(np.diag(L)).sum()
                     K = SimpleKDE(K.dataset, K.weights, K.d, K.n, K.inv_cov, L, log_det)
-                except np.linalg.LinAlgError:
+                except np.linalg.LinAlgError:  # type: ignore
                     pass
 
             kdes.append(K)
@@ -642,7 +646,7 @@ def smc_setup(
     return T, M, models, modelPrior, numProcs, numSumStats, numZerosData, ssData
 
 
-def take_best_n_particles(fit, n):
+def take_best_n_particles(fit: Population, n: int) -> Tuple[Population, float]:
     """
     Create a subpopulation of particles by selecting the best n particles.
     A particle's quality is assessed by its distance value.
@@ -652,7 +656,9 @@ def take_best_n_particles(fit, n):
     return fit.subpopulation(keep), eps
 
 
-def reduce_population_size(fit, targetESS, epsMin):
+def reduce_population_size(
+    fit: Population, targetESS: float, epsMin: float
+) -> Tuple[Population, float]:
     """
     Create a subpopulation of particles by discarding the worst particles until the
     ESS drops to a target value. A particle's quality is assessed by its distance value.
@@ -675,7 +681,9 @@ def reduce_population_size(fit, targetESS, epsMin):
     return fit, eps
 
 
-def prepare_next_population(onFinalIteration, popSize, epsMin, fit):
+def prepare_next_population(
+    onFinalIteration: bool, popSize: int, epsMin: float, fit: Population
+) -> Tuple[Population, float]:
     """
     After sampling a round in the sequential Monte Carlo algorithm, we
     discard particles in order to create a smaller population which represent
@@ -719,7 +727,10 @@ def print_update(t, eps, elapsed, numSims, totalSimulationCost, fit, nextFit):
     elapsedMins = np.round(elapsed / 60, 1)
     update += f"time = {np.round(elapsed)}s / {elapsedMins}m, "
     update += f"popSize = {fit.size()} -> {nextFit.size()}, "
-    update += f"ESS = {fit.ess()} -> {nextFit.ess()}, "
+    if fit.M > 1:
+        update += f"ESS = {fit.ess()} -> {nextFit.ess()}, "
+    else:
+        update += f"ESS = {fit.ess()[0]} -> {nextFit.ess()[0]}, "
     update += f"# sims = {numSims}, total # sims = {totalSimulationCost}"
     if fit.M > 1:
         update += f"\n\tmodel populations = {fit.model_sizes()}, "

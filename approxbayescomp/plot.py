@@ -5,7 +5,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.random import choice, default_rng
-from scipy.stats import gaussian_kde
+from scipy.stats import gaussian_kde  # type: ignore
 
 from .weighted import iqr, resample, resample_and_kde
 
