@@ -11,6 +11,7 @@ from time import time
 from typing import Optional, Tuple
 
 import joblib  # type: ignore
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.random as rnd
 from numba import float64, int64, njit, void  # type: ignore
@@ -20,6 +21,7 @@ from numpy.random import SeedSequence, default_rng  # type: ignore
 from scipy.stats import gaussian_kde  # type: ignore
 from tqdm.auto import tqdm  # type: ignore
 
+from .plot import plot_posteriors
 from .simulate import (
     sample_discrete_dist,
     sample_multivariate_normal,
@@ -681,7 +683,7 @@ def prepare_next_population(
     discard particles in order to create a smaller population which represent
     a better fit to the data. The original population is unaltered.
     """
-    if np.sort(fit.dists)[popSize - 1] < epsMin or onFinalIteration:
+    if onFinalIteration or np.sort(fit.dists)[popSize - 1] < epsMin:
         # Take the best popSize particles to be the final population.
         nextFit, eps = take_best_n_particles(fit, popSize)
     else:
@@ -749,11 +751,22 @@ def smc(
     strictPopulationSize=False,
     simulatorUsesOldNumpyRNG=True,
     showProgressBar=False,
+    plotProgress=False,
+    plotProgressRefLines=None,
 ):
     if numProcs == 1:
         strictPopulationSize = True
 
-    obs, T, modelPrior, priors, models, numSumStats, numZerosData, ssData = smc_setup(
+    (
+        obs,
+        T,
+        modelPrior,
+        simplePriors,
+        models,
+        numSumStats,
+        numZerosData,
+        ssData,
+    ) = smc_setup(
         obs,
         modelPrior,
         models,
@@ -767,7 +780,6 @@ def smc(
         print_header(popSize, T, numSumStats, numProcs)
 
     totalSimulationCost = 0
-    interrupted = False
     eps = np.inf
 
     # To keep the linter happy, declare some variables as None temporarily
@@ -788,7 +800,7 @@ def smc(
                     parallel,
                     modelPrior,
                     models,
-                    priors,
+                    simplePriors,
                     prevFit,
                     sumstats,
                     distance,
@@ -812,26 +824,25 @@ def smc(
                     print(
                         "A running approxbayescomp.smc(..) call was cancelled, the previous population has been returned."
                     )
-                    interrupted = True
+                    fit = prevFit
+                    break
 
             elapsed = time() - startTime
             totalSimulationCost += numSims
 
-            nextFit, eps = prepare_next_population(
-                t == numIters or interrupted, popSize, epsMin, fit
-            )
+            nextFit, eps = prepare_next_population(t == numIters, popSize, epsMin, fit)
 
             if verbose:
                 print_update(
                     t, eps, elapsed, numSims, totalSimulationCost, fit, nextFit
                 )
 
-            if interrupted:
-                fit = prevFit
-                break
-
             fit = nextFit
             prevFit = nextFit
+
+            if plotProgress:
+                plot_posteriors(fit, priors, refLines=plotProgressRefLines)
+                plt.show()
 
             if eps < epsMin:
                 if verbose:
