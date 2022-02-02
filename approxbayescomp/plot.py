@@ -125,11 +125,16 @@ def plot_posteriors(
     figsize=(5.0, 2.0),
     dpi=350,
     refStyle={"color": "black", "linestyle": "--"},
-    removeYAxis=False,
+    removeYAxis=None,
 ):
-
     numThetas = len(prior.marginals)
     fig, axs = plt.subplots(1, numThetas, tight_layout=True, figsize=figsize, dpi=dpi)
+
+    if removeYAxis is None:
+        removeYAxis = numThetas > 4
+
+    if len(subtitles) == 0 and prior.names is not None:
+        subtitles = prior.names
 
     for i in range(numThetas):
         pLims = [prior.marginals[i].isf(1), prior.marginals[i].isf(0)]
@@ -139,7 +144,7 @@ def plot_posteriors(
         )
         axs[i].plot(xs, ys)
 
-        if refLines:
+        if refLines is not None:
             axs[i].axvline(refLines[i], **refStyle)
 
         if i < len(subtitles):
