@@ -4,9 +4,9 @@
 """
 from __future__ import annotations
 
+import collections
 import inspect
 import warnings
-from collections import namedtuple
 from time import time
 from typing import Optional, Tuple
 
@@ -21,6 +21,7 @@ from numpy.random import SeedSequence, default_rng  # type: ignore
 from scipy.stats import gaussian_kde  # type: ignore
 from tqdm.auto import tqdm  # type: ignore
 
+from .distance import wasserstein
 from .plot import plot_posteriors
 from .simulate import (
     sample_discrete_dist,
@@ -28,7 +29,6 @@ from .simulate import (
     sample_uniform_dist,
     simulate_claim_data,
 )
-from .wasserstein import wass_dist, wass_sumstats
 from .weighted import systematic_resample
 
 # Suppress a numba.PerformanceWarning
@@ -40,9 +40,9 @@ def numba_seed(seed):
     rnd.seed(seed)
 
 
-Psi = namedtuple("Psi", ["name", "param"], defaults=["sum", 0.0])
+Psi = collections.namedtuple("Psi", ["name", "param"], defaults=["sum", 0.0])
 
-Model = namedtuple(
+Model = collections.namedtuple(
     "Model",
     ["freq", "sev", "psi", "obsFreqs"],
     defaults=["ones", None, None, None],
@@ -53,7 +53,7 @@ def kde(data: np.ndarray, weights: np.ndarray, bw: float = np.sqrt(2)):
     return gaussian_kde(data.T, weights=weights, bw_method=bw)
 
 
-SimpleKDE = namedtuple(
+SimpleKDE = collections.namedtuple(
     "SimpleKDE", ["dataset", "weights", "d", "n", "inv_cov", "L", "log_det"]
 )
 
@@ -202,7 +202,7 @@ class Population(object):
 # it can't handle the Prior classes. So, e.g. the 'SimpleIndependentUniformPrior' pulls
 # out the key details from the IndependentUniformPrior class & turns it into a boring
 # 'bag of data' (named tuple) which numba can handle/compile.
-SimpleIndependentUniformPrior = namedtuple(
+SimpleIndependentUniformPrior = collections.namedtuple(
     "SimpleIndependentUniformPrior", ["lower", "upper", "width", "normConst"]
 )
 
@@ -341,7 +341,10 @@ def _sample_one_first_iteration(
         else:
             xFake = model(rg, theta)
 
-    dist = distance(ssData, sumstats(xFake))
+    if sumstats is not None:
+        dist = distance(ssData, sumstats(xFake))
+    else:
+        dist = distance(ssData, xFake)
 
     return m, theta, 1.0, dist, 1
 
@@ -430,10 +433,15 @@ def sample_particles(
         if matchZeros and not np.all(np.sum(xFake == 0, axis=0) == numZerosData):
             continue
 
-        if "max_dist" in inspect.signature(distance).parameters:
-            dist = distance(ssData, sumstats(xFake), max_dist=eps)
+        if sumstats is not None:
+            ssFake = sumstats(xFake)
         else:
-            dist = distance(ssData, sumstats(xFake))
+            ssFake = xFake
+
+        if "max_dist" in inspect.signature(distance).parameters:
+            dist = distance(ssData, ssFake, max_dist=eps)
+        else:
+            dist = distance(ssData, ssFake)
 
         if dist < eps:
             thetaLogWeight = np.log(priorVal) - gaussian_kde_logpdf(
@@ -591,6 +599,7 @@ def smc_setup(
     models,
     priors,
     sumstats,
+    distance,
 ):
     obs = np.asarray(obs, dtype=float).squeeze()
     T = obs.shape[0]
@@ -607,7 +616,15 @@ def smc_setup(
 
     numZerosData = np.sum(obs == 0, axis=0)
 
-    ssData = sumstats(obs)
+    if isinstance(distance, collections.abc.Sequence):
+        sumstats = distance[0]
+        distance = distance[1]
+
+    if sumstats is not None:
+        ssData = sumstats(obs)
+    else:
+        ssData = obs
+
     if not np.isscalar(ssData) and len(ssData) > 1:
         numSumStats = len(np.array(ssData).flatten())
     else:
@@ -637,7 +654,18 @@ def smc_setup(
 
     newModels = tuple(newModels)
 
-    return obs, T, modelPrior, newPriors, newModels, numSumStats, numZerosData, ssData
+    return (
+        obs,
+        T,
+        modelPrior,
+        newPriors,
+        newModels,
+        numSumStats,
+        numZerosData,
+        sumstats,
+        distance,
+        ssData,
+    )
 
 
 def take_best_n_particles(fit: Population, n: int) -> Tuple[Population, float]:
@@ -738,8 +766,8 @@ def smc(
     obs,
     models,
     priors,
-    sumstats=wass_sumstats,
-    distance=wass_dist,
+    distance=wasserstein,
+    sumstats=None,
     modelPrior=None,
     numProcs=1,
     epsMin=0,
@@ -765,6 +793,8 @@ def smc(
         models,
         numSumStats,
         numZerosData,
+        sumstats,
+        distance,
         ssData,
     ) = smc_setup(
         obs,
@@ -772,6 +802,7 @@ def smc(
         models,
         priors,
         sumstats,
+        distance,
     )
 
     sg = SeedSequence(seed)

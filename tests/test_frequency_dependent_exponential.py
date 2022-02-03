@@ -227,7 +227,6 @@ def test_dynamic_time_warping():
         xData,
         model,
         prior,
-        sumstats=abc.identity,
         distance=dtw.distance,
         epsMin=epsMin,
         verbose=True,

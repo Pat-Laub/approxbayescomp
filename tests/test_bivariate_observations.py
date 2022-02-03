@@ -2,8 +2,6 @@ import approxbayescomp as abc
 import numpy as np
 import numpy.random as rnd
 import pandas as pd
-from dtaidistance import dtw
-from numba import njit
 
 numIters = 5
 popSize = 100
@@ -64,8 +62,7 @@ def test_full_model():
         xData,
         model,
         prior,
-        sumstats=abc.wass_2Ddist_ss,
-        distance=abc.wass_2Ddist,
+        distance=abc.wasserstein2D,
         verbose=True,
         seed=1,
     )
@@ -82,8 +79,7 @@ def test_eps_min():
         model,
         prior,
         epsMin=epsMin,
-        sumstats=abc.wass_2Ddist_ss,
-        distance=abc.wass_2Ddist,
+        distance=abc.wasserstein2D,
         verbose=True,
         seed=1,
     )
@@ -100,8 +96,7 @@ def test_match_zeros():
         model,
         prior,
         matchZeros=True,
-        sumstats=abc.wass_2Ddist_ss,
-        distance=abc.wass_2Ddist,
+        distance=abc.wasserstein2D,
         verbose=True,
         seed=1,
     )
@@ -120,8 +115,7 @@ def test_multiple_processes():
         prior,
         numProcs=numProcs,
         epsMin=epsMin,
-        sumstats=abc.wass_2Ddist_ss,
-        distance=abc.wass_2Ddist,
+        distance=abc.wasserstein2D,
         verbose=True,
         seed=1,
     )
@@ -139,8 +133,7 @@ def test_strict_population_size():
         prior,
         numProcs=numProcs,
         epsMin=epsMin,
-        sumstats=abc.wass_2Ddist_ss,
-        distance=abc.wass_2Ddist,
+        distance=abc.wasserstein2D,
         verbose=True,
         seed=1,
         strictPopulationSize=True,
@@ -159,8 +152,7 @@ def test_pandas_input():
         model,
         prior,
         epsMin=epsMin,
-        sumstats=abc.wass_2Ddist_ss,
-        distance=abc.wass_2Ddist,
+        distance=abc.wasserstein2D,
         verbose=True,
         seed=1,
     )
