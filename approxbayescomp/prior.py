@@ -30,19 +30,22 @@ class IndependentUniformPrior(object):
     def pdf(self, theta):
         return uniform_prior_pdf(theta, self.lower, self.upper, self.normConst)
 
-    def sample(self, rg):
+    def sample(self, rg=None):
+        if rg is None:
+            rg = np.random
         return self.lower + self.widths * rg.uniform(size=self.dim)
 
 
 class IndependentPrior(object):
     def __init__(self, marginals, names=None, types=None):
         self.marginals = marginals
+        self.dim = len(marginals)
+
         if types:
             self.types = types
         else:
             self.types = ["continuous" for _ in marginals]
         self.names = names
-        self.rg = None
 
     def pdf(self, theta):
         list_lik_prior = []
@@ -53,16 +56,12 @@ class IndependentPrior(object):
                 list_lik_prior.append(self.marginals[i].pdf(theta_i))
         return np.prod(list_lik_prior)
 
-    def sample(self, size=None, seed=None):
-        if seed is None:
-            self.rg = np.random
-        elif type(seed) == int:
-            self.rg = np.random.default_rng(seed)
-        else:
-            self.rg = seed
+    def sample(self, rg=None):
+        if rg is None:
+            rg = np.random
 
         return np.array(
-            [prior.rvs(random_state=self.rg) for prior in self.marginals]
+            [prior.rvs(random_state=rg) for prior in self.marginals]
         ).reshape(-1)
 
 

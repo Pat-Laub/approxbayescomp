@@ -3,3 +3,4 @@ junk/*
 *.ipynb_checkpoints*
 approxbayescomp.egg-info*
 build*
+*DS_Store

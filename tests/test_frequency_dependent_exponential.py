@@ -2,6 +2,7 @@ import approxbayescomp as abc
 import numpy as np
 import numpy.random as rnd
 import pandas as pd
+import scipy.stats as st
 from dtaidistance import dtw
 from numba import float64, int64, njit
 
@@ -235,6 +236,18 @@ def test_dynamic_time_warping():
     check_fit(fit, popSize, epsMin, prior.dim)
 
 
+def test_nonuniform_prior():
+    print("\ntest_nonuniform_prior()\n")
+
+    locs = (0, 0, -1)
+    means = (5, 10, 1)
+    marginals = [st.expon(loc=loc, scale=mean) for loc, mean in zip(locs, means)]
+    prior = abc.IndependentPrior(marginals)
+
+    fit = abc.smc(numIters, popSize, xData, model, prior, verbose=True, seed=1)
+    check_fit(fit, popSize, epsMin, prior.dim)
+
+
 if __name__ == "__main__":
     test_partially_observed_model()
     test_full_model()
@@ -248,3 +261,4 @@ if __name__ == "__main__":
     test_list_input()
     test_pandas_input()
     test_dynamic_time_warping()
+    test_nonuniform_prior()

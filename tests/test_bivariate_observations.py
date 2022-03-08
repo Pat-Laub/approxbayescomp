@@ -2,8 +2,9 @@ import approxbayescomp as abc
 import numpy as np
 import numpy.random as rnd
 import pandas as pd
+import scipy.stats as st
 
-numIters = 5
+numIters = 6
 popSize = 100
 
 # Frequency-Loss Model
@@ -159,6 +160,24 @@ def test_pandas_input():
     check_fit(fit, popSize, epsMin, prior.dim)
 
 
+def test_nonuniform_prior():
+    print("\ntest_nonuniform_prior()\n")
+    means = (1, 25, 25, 50, 50)
+    marginals = [st.expon(scale=mean) for mean in means]
+    prior = abc.IndependentPrior(marginals)
+    fit = abc.smc(
+        numIters,
+        popSize,
+        xData,
+        model,
+        prior,
+        distance=abc.wasserstein2D,
+        verbose=True,
+        seed=1,
+    )
+    check_fit(fit, popSize, epsMin, prior.dim)
+
+
 if __name__ == "__main__":
     test_full_model()
     test_eps_min()
@@ -166,3 +185,4 @@ if __name__ == "__main__":
     test_multiple_processes()
     test_strict_population_size()
     test_pandas_input()
+    test_nonuniform_prior()

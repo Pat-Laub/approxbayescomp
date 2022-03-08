@@ -15,8 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.random as rnd
 from numba import float64, int64, njit, void  # type: ignore
-from numba.core.errors import NumbaPerformanceWarning
-from numba.core.types import unicode_type
+from numba.core.errors import NumbaPerformanceWarning  # type: ignore
+from numba.core.types import unicode_type  # type: ignore
 from numpy.random import SeedSequence, default_rng  # type: ignore
 from scipy.stats import gaussian_kde  # type: ignore
 from tqdm.auto import tqdm  # type: ignore
@@ -26,7 +26,6 @@ from .plot import plot_posteriors
 from .simulate import (
     sample_discrete_dist,
     sample_multivariate_normal,
-    sample_uniform_dist,
     simulate_claim_data,
 )
 from .weighted import systematic_resample
@@ -198,15 +197,6 @@ class Population(object):
         return tuple(kdes)
 
 
-# Currently it's difficult to get numba to compile a whole class, and in particular
-# it can't handle the Prior classes. So, e.g. the 'SimpleIndependentUniformPrior' pulls
-# out the key details from the IndependentUniformPrior class & turns it into a boring
-# 'bag of data' (named tuple) which numba can handle/compile.
-SimpleIndependentUniformPrior = collections.namedtuple(
-    "SimpleIndependentUniformPrior", ["lower", "upper", "width", "normConst"]
-)
-
-
 def compute_psi(freqs: np.ndarray, sevs: np.ndarray, psi):
     return _compute_psi(freqs, sevs, psi.name, psi.param)
 
@@ -318,7 +308,8 @@ def _sample_one_first_iteration(
     m = sample_discrete_dist(modelPrior)
     model = models[m]
     prior = priors[m]
-    theta = sample_uniform_dist(prior.lower, prior.width)
+
+    theta = prior.sample(rg)
 
     if type(model) == Model:
         claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta)
@@ -406,7 +397,7 @@ def sample_particles(
 
         theta = sample_multivariate_normal(rg, mu, K.L)
 
-        priorVal = uniform_pdf(theta, prior.lower, prior.upper, prior.normConst)
+        priorVal = prior.pdf(theta)
         if priorVal <= 0:
             continue
 
@@ -630,16 +621,6 @@ def smc_setup(
     else:
         numSumStats = 1
 
-    newPriors = tuple(
-        SimpleIndependentUniformPrior(
-            prior.lower,
-            prior.upper,
-            prior.widths,
-            prior.normConst,
-        )
-        for prior in priors
-    )
-
     newModels = []
     for model in models:
         if type(model) == Model:
@@ -658,7 +639,7 @@ def smc_setup(
         obs,
         T,
         modelPrior,
-        newPriors,
+        priors,
         newModels,
         numSumStats,
         numZerosData,
@@ -789,7 +770,7 @@ def smc(
         obs,
         T,
         modelPrior,
-        simplePriors,
+        priors,
         models,
         numSumStats,
         numZerosData,
@@ -831,7 +812,7 @@ def smc(
                     parallel,
                     modelPrior,
                     models,
-                    simplePriors,
+                    priors,
                     prevFit,
                     sumstats,
                     distance,
