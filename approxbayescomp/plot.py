@@ -78,19 +78,18 @@ def draw_prior(prior, axs, color="tab:purple"):
         priorL = priorI.isf(1)
         priorR = priorI.isf(0)
 
-        if priorL > 0:
-            xlimL = priorL * 0.9
-        elif priorL == 0:
-            if priorR == 1 or priorR == 1.0:
-                xlimL = -0.1
-            elif priorR == 2 or priorR == 2.0:
-                xlimL = -0.2
-            else:
-                xlimL = -1
-        else:
-            xlimL = priorL * 1.1
+        if not np.isfinite(priorL):
+            priorL = priorI.isf(0.95)
+        if not np.isfinite(priorR):
+            priorR = priorI.isf(0.05)
 
-        xlimR = priorR * 1.1
+        priorWidth = priorR - priorL
+
+        # Want to have x axis be 10% padding, then 80% prior, then 10% padding.
+        xAxisWidth = priorWidth / 0.8
+        padding = xAxisWidth - priorWidth
+        xlimL = priorL - padding / 2
+        xlimR = priorR + padding / 2
 
         xs = np.linspace(xlimL, xlimR, 100)
         xs = np.sort(
@@ -112,6 +111,7 @@ def draw_prior(prior, axs, color="tab:purple"):
         (priorLine,) = axs[i].plot(
             xs, priorI.pdf(xs), label="Prior", color=color, alpha=0.75, zorder=0
         )
+        axs[i].set_xlim([xlimL, xlimR])
         lines.append(priorLine)
 
     return lines

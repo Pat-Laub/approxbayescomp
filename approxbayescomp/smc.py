@@ -852,8 +852,8 @@ def smc(
             fit = nextFit
             prevFit = nextFit
 
-            if plotProgress:
-                plot_posteriors(fit, priors, refLines=plotProgressRefLines)
+            if plotProgress and len(models) == 1:
+                plot_posteriors(fit, priors[0], refLines=plotProgressRefLines)
                 plt.show()
 
             if eps < epsMin:
