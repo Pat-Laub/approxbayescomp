@@ -117,9 +117,18 @@ class Population(object):
         Combine this population with another to create one larger population.
         """
         ms = np.concatenate([self.models, other.models])
-        weights = np.concatenate([self.weights, other.weights])
         samples = np.concatenate([self.samples, other.samples], axis=0)
         dists = np.concatenate([self.dists, other.dists])
+
+        # Some care needs to be taken to adjust the weights when combining.
+        # See Appendix B.1 of Leah South's PhD thesis.
+        # https://eprints.qut.edu.au/132155/1/Leah_South_Thesis.pdf
+        popWeights = np.array((self.total_ess(), other.total_ess()), dtype=np.float64)
+        popWeights /= sum(popWeights)
+        weights = np.concatenate(
+            [popWeights[0] * self.weights, popWeights[1] * other.weights]
+        )
+
         return Population(ms, weights, samples, dists, self.M)
 
     def drop_worst_particle(self) -> None:
