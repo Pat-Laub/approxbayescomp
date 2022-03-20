@@ -663,9 +663,8 @@ def take_best_n_particles(fit: Population, n: int) -> Tuple[Population, float]:
     Create a subpopulation of particles by selecting the best n particles.
     A particle's quality is assessed by its distance value.
     """
-    eps = np.sort(fit.dists)[n - 1]
-    keep = fit.dists <= eps
-    return fit.subpopulation(keep), eps
+    sortInds = np.argsort(fit.dists)
+    return fit.subpopulation(sortInds[:n]), sortInds[n - 1]
 
 
 def reduce_population_size(
