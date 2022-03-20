@@ -664,7 +664,7 @@ def take_best_n_particles(fit: Population, n: int) -> Tuple[Population, float]:
     A particle's quality is assessed by its distance value.
     """
     sortInds = np.argsort(fit.dists)
-    return fit.subpopulation(sortInds[:n]), sortInds[n - 1]
+    return fit.subpopulation(sortInds[:n]), fit.dists[sortInds[n - 1]]
 
 
 def reduce_population_size(
