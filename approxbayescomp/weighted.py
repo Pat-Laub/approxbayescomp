@@ -168,7 +168,7 @@ def resample_and_kde(data, weights, cut=3, clip=(-np.inf, np.inf), seed=1, repea
     dataResampled = data[resample(rng, weights, repeats=repeats)]
 
     # Choose support for KDE
-    neff = 1 / sum(weights ** 2)
+    neff = 1 / sum(weights**2)
     scott = neff ** (-1.0 / 5)
     cov = np.cov(data, bias=False, aweights=weights)
     bw = scott * np.sqrt(cov)

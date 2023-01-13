@@ -112,9 +112,7 @@ def simulate_claim_sizes(rg, R, sev, theta_sev):
             return np.array([])
         else:
             mu, sigma, ρ = theta_sev
-            Σ = np.ones((R, R)) * ρ * sigma ** 2 + np.identity(R) * (
-                sigma ** 2 - sigma ** 2 * ρ
-            )
+            Σ = np.ones((R, R)) * ρ * sigma**2 + np.identity(R) * (sigma**2 - sigma**2 * ρ)
 
             return np.exp(rg.multivariate_normal(np.repeat(mu, R), Σ, 1).flatten())
     elif sev == "frequency dependent exponential":
@@ -130,11 +128,9 @@ def simulate_claim_sizes(rg, R, sev, theta_sev):
         )
         par_rvs = threshold * (1 + rg.pareto(tail, size=R))
         binom_rvs = rg.binomial(1, r, size=R)
-        weib_rvs = (
-            -np.log(
-                1 - (1 - np.exp(-((threshold / scale) ** shape))) * rg.uniform(size=R)
-            )
-        ) ** (1 / shape) * scale
+        weib_rvs = (-np.log(1 - (1 - np.exp(-((threshold / scale) ** shape))) * rg.uniform(size=R))) ** (
+            1 / shape
+        ) * scale
         return binom_rvs * weib_rvs + (1 - binom_rvs) * par_rvs
     else:
         raise Exception(f"Unknown severity distribution '{sev}")
@@ -142,22 +138,14 @@ def simulate_claim_sizes(rg, R, sev, theta_sev):
 
 def bivariate_clayton(rg, T, theta_cop):
     u = rg.uniform(size=(T, 2))
-    u[:, 1] = (
-        u[:, 0] ** (-theta_cop) * (u[:, 1] ** (-theta_cop / (1 + theta_cop)) - 1) + 1
-    ) ** (-1 / theta_cop)
+    u[:, 1] = (u[:, 0] ** (-theta_cop) * (u[:, 1] ** (-theta_cop / (1 + theta_cop)) - 1) + 1) ** (-1 / theta_cop)
     return u
 
 
 def bivariate_frank(rg, T, theta_cop):
     u = rg.uniform(size=(T, 2))
     expU1 = np.exp(-theta_cop * u[:, 0])
-    u[:, 1] = (
-        -1
-        / (theta_cop)
-        * np.log(
-            1 + (u[:, 1] * (1 - np.exp(-theta_cop))) / (u[:, 1] * (expU1 - 1) - expU1)
-        )
-    )
+    u[:, 1] = -1 / (theta_cop) * np.log(1 + (u[:, 1] * (1 - np.exp(-theta_cop))) / (u[:, 1] * (expU1 - 1) - expU1))
 
     return u
 
@@ -172,11 +160,7 @@ def bivariate_poisson(rg, T, theta_cop, theta_freqs):
 
 def seasonal_poisson(rg, T, a, gamma, c):
     t = np.arange(T)
-    mus = a * (
-        1
-        + (gamma / (2 * np.pi * c))
-        * (np.cos(2 * np.pi * t * c) - np.cos(2 * np.pi * (t + 1) * c))
-    )
+    mus = a * (1 + (gamma / (2 * np.pi * c)) * (np.cos(2 * np.pi * t * c) - np.cos(2 * np.pi * (t + 1) * c)))
     freqs = rg.poisson(mus)
     return freqs
 
@@ -307,9 +291,7 @@ def simulate_claim_data(rg, T, freq, sev, theta):
         return (np.repeat(1, T), np.repeat(np.inf, T))
 
     if sev == "frequency dependent exponential":
-        sevs = np.concatenate(
-            [simulate_claim_sizes(rg, freq, sev, theta_sev) for freq in freqs]
-        )
+        sevs = np.concatenate([simulate_claim_sizes(rg, freq, sev, theta_sev) for freq in freqs])
     else:
         sevs = simulate_claim_sizes(rg, freqs.sum(), sev, theta_sev)
 

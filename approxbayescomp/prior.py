@@ -23,9 +23,7 @@ class IndependentUniformPrior(object):
         self.widths = self.upper - self.lower
         self.names = names
         self.normConst = 1.0 / np.prod(self.widths)
-        self.marginals = [
-            st.uniform(self.lower[i], self.widths[i]) for i in range(self.dim)
-        ]
+        self.marginals = [st.uniform(self.lower[i], self.widths[i]) for i in range(self.dim)]
 
     def pdf(self, theta):
         return uniform_prior_pdf(theta, self.lower, self.upper, self.normConst)
@@ -60,9 +58,7 @@ class IndependentPrior(object):
         if rg is None:
             rg = np.random
 
-        return np.array(
-            [prior.rvs(random_state=rg) for prior in self.marginals]
-        ).reshape(-1)
+        return np.array([prior.rvs(random_state=rg) for prior in self.marginals]).reshape(-1)
 
 
 # Function that set up the prior distribution for the parameters depending on
@@ -85,50 +81,34 @@ def default_prior(freq, sev, hyper_theta_freq, hyper_theta_sev):
             betaPrior = st.uniform(low_beta, up_beta)
             theta_types = ("discrete", "continuous", "continuous", "continuous")
             theta_names = ("n", "p", "k", "β")
-            return IndependentPrior(
-                [nPrior, pPrior, kPrior, betaPrior], theta_types, theta_names
-            )
+            return IndependentPrior([nPrior, pPrior, kPrior, betaPrior], theta_types, theta_names)
         else:
             low_mu, up_mu, low_sig, up_sig = hyper_theta_sev
             muPrior = st.uniform(low_mu, up_mu)
             sigPrior = st.uniform(low_sig, up_sig)
             theta_types = ("discrete", "continuous", "continuous", "continuous")
             theta_names = ("n", "p", "μ", "σ")
-            return IndependentPrior(
-                [nPrior, pPrior, muPrior, sigPrior], theta_types, theta_names
-            )
+            return IndependentPrior([nPrior, pPrior, muPrior, sigPrior], theta_types, theta_names)
     elif freq == "negative binomial":
         low_a, up_a, low_p, up_p = hyper_theta_freq
 
         if sev == "weibull" or sev == "gamma":
             low_k, up_k, low_beta, up_beta = hyper_theta_sev
             theta_names = ("a", "p", "k", "β")
-            return IndependentUniformPrior(
-                [low_a, low_p, low_k, low_beta],
-                [up_a, up_p, up_k, up_beta],
-                theta_names,
-            )
+            return IndependentUniformPrior([low_a, low_p, low_k, low_beta], [up_a, up_p, up_k, up_beta], theta_names)
         else:
             low_mu, up_mu, low_sig, up_sig = hyper_theta_sev
             theta_names = ("a", "p", "μ", "σ")
-            return IndependentUniformPrior(
-                [low_a, low_p, low_mu, low_sig],
-                [up_a, up_p, up_mu, up_sig],
-                theta_names,
-            )
+            return IndependentUniformPrior([low_a, low_p, low_mu, low_sig], [up_a, up_p, up_mu, up_sig], theta_names)
     else:
         low_lam, up_lam = hyper_theta_freq
         if sev == "weibull" or sev == "gamma":
             low_k, up_k, low_beta, up_beta = hyper_theta_sev
             theta_names = ("λ", "k", "β")
-            return IndependentUniformPrior(
-                [low_lam, low_k, low_beta], [up_lam, up_k, up_beta], theta_names
-            )
+            return IndependentUniformPrior([low_lam, low_k, low_beta], [up_lam, up_k, up_beta], theta_names)
         else:
             low_mu, up_mu, low_sig, up_sig = hyper_theta_sev
             theta_names = ("λ", "μ", "σ")
-            return IndependentUniformPrior(
-                [low_lam, low_mu, low_sig], [up_lam, up_mu, up_sig], theta_names
-            )
+            return IndependentUniformPrior([low_lam, low_mu, low_sig], [up_lam, up_mu, up_sig], theta_names)
 
     raise RuntimeError("Unsupported prior distribution")

@@ -14,7 +14,7 @@ from .weighted import iqr, resample, resample_and_kde
 def freedman_diaconis_bins(data, weights, maxBins=50):
     if len(data) < 2:
         return 1
-    neff = 1 / np.sum(weights ** 2)
+    neff = 1 / np.sum(weights**2)
     h = 2 * iqr(data, weights) / (neff ** (1 / 3))
 
     # fall back to sqrt(data.size) bins if iqr is 0
@@ -27,15 +27,7 @@ def freedman_diaconis_bins(data, weights, maxBins=50):
 # This is supposed to be a replacement for the seaborn library
 # function 'distplot' which works correctly for weighted samples.
 def weighted_distplot(
-    data,
-    weights,
-    ax=None,
-    cut=3,
-    clip=(-np.inf, np.inf),
-    seed=1,
-    repeats=10,
-    hist=True,
-    despine=True,
+    data, weights, ax=None, cut=3, clip=(-np.inf, np.inf), seed=1, repeats=10, hist=True, despine=True
 ):
     if not ax:
         ax = plt.gca()
@@ -53,7 +45,7 @@ def weighted_distplot(
         ax.hist(dataResampled, bins=bins, color=color, density=True, alpha=0.4)
 
     # Choose support for KDE
-    neff = 1 / sum(weights ** 2)
+    neff = 1 / sum(weights**2)
     scott = neff ** (-1.0 / 5)
     cov = np.cov(data, bias=False, aweights=weights)
     bw = scott * np.sqrt(cov)
@@ -92,25 +84,9 @@ def draw_prior(prior, axs, color="tab:purple"):
         xlimR = priorR + padding / 2
 
         xs = np.linspace(xlimL, xlimR, 100)
-        xs = np.sort(
-            np.concatenate(
-                (
-                    xs,
-                    [
-                        priorL,
-                        priorL - 1e-8,
-                        priorL + 1e-8,
-                        priorR,
-                        priorR - 1e-8,
-                        priorR + 1e-8,
-                    ],
-                )
-            )
-        )
+        xs = np.sort(np.concatenate((xs, [priorL, priorL - 1e-8, priorL + 1e-8, priorR, priorR - 1e-8, priorR + 1e-8])))
 
-        (priorLine,) = axs[i].plot(
-            xs, priorI.pdf(xs), label="Prior", color=color, alpha=0.75, zorder=0
-        )
+        (priorLine,) = axs[i].plot(xs, priorI.pdf(xs), label="Prior", color=color, alpha=0.75, zorder=0)
         axs[i].set_xlim([xlimL, xlimR])
         lines.append(priorLine)
 
@@ -139,9 +115,7 @@ def plot_posteriors(
     for i in range(numThetas):
         pLims = [prior.marginals[i].isf(1), prior.marginals[i].isf(0)]
 
-        dataResampled, xs, ys = resample_and_kde(
-            fit.samples[:, i], fit.weights, clip=pLims
-        )
+        dataResampled, xs, ys = resample_and_kde(fit.samples[:, i], fit.weights, clip=pLims)
         axs[i].plot(xs, ys)
 
         if refLines is not None:
@@ -168,9 +142,7 @@ def plot_posteriors(
 #   for the KDE (and histograms). This is fixed in the following
 #   function.
 # ###############################################################
-def _plot_results(
-    samples, weights, prior, momentEst=None, boot=False, filename=None, thetaTrue=None
-):
+def _plot_results(samples, weights, prior, momentEst=None, boot=False, filename=None, thetaTrue=None):
     numSamples, numTheta = samples.shape
     if boot:
         indices = choice(numSamples, size=10 * numSamples, p=weights)
@@ -196,44 +168,19 @@ def _plot_results(
         xlimR = priorR * 1.1
 
         xs = np.linspace(xlimL, xlimR, 100)
-        xs = np.sort(
-            np.concatenate(
-                (
-                    xs,
-                    [
-                        priorL,
-                        priorL - 1e-8,
-                        priorL + 1e-8,
-                        priorR,
-                        priorR - 1e-8,
-                        priorR + 1e-8,
-                    ],
-                )
-            )
-        )
+        xs = np.sort(np.concatenate((xs, [priorL, priorL - 1e-8, priorL + 1e-8, priorR, priorR - 1e-8, priorR + 1e-8])))
 
         ax = axs[i]
         ax.set_title(prior.names[i])
 
         (priorLine,) = ax.plot(xs, priorI.pdf(xs), label="Prior")
-        ax.axvline(
-            priorI.mean(),
-            color=priorLine.get_color(),
-            linestyle="--",
-            label="Prior Mean",
-        )
+        ax.axvline(priorI.mean(), color=priorLine.get_color(), linestyle="--", label="Prior Mean")
 
         xs = np.linspace(ax.get_xlim()[0], ax.get_xlim()[1], 100)
         kde = gaussian_kde(samples[:, i], weights=weights)
         (kdeLine,) = ax.plot(xs, kde(xs), label="ABC Posterior (KDE)")
 
-        ax.hist(
-            samplesBoot[:, i],
-            bins=20,
-            density=True,
-            color=kdeLine.get_color(),
-            alpha=0.2,
-        )
+        ax.hist(samplesBoot[:, i], bins=20, density=True, color=kdeLine.get_color(), alpha=0.2)
 
         ax.axvline(meanAPEsts[i], color="r", label="ABC Posterior Mean")
 
@@ -244,13 +191,7 @@ def _plot_results(
             ax.axvline(thetaTrue[i], color="k", label="True Value")
 
     handles, labels = axs[0].get_legend_handles_labels()
-    lgd = fig.legend(
-        handles,
-        labels,
-        loc="lower center",
-        bbox_to_anchor=(0.5, -0.02),
-        ncol=len(labels),
-    )
+    lgd = fig.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.02), ncol=len(labels))
     plt.tight_layout()
     if filename:
         fig.savefig(filename, bbox_extra_artists=(lgd,), bbox_inches="tight")
@@ -264,9 +205,7 @@ def plot_abc_fit(fit):
     fig, axs = plt.subplots(len(models), len(fit.samples[0]))
 
     for mInd, m in enumerate(models):
-        samples = np.array(
-            [fit.samples[i] for i in range(numSamples) if fit.models[i] == m]
-        )
+        samples = np.array([fit.samples[i] for i in range(numSamples) if fit.models[i] == m])
         weights = fit.weights[fit.models == m]
         weights /= np.sum(weights)
         numTheta = samples.shape[1]
@@ -279,16 +218,7 @@ def plot_abc_fit(fit):
 
 
 # Copied directly from https://github.com/mwaskom/seaborn/blob/77e3b6b03763d24cc99a8134ee9a6f43b32b8e7b/seaborn/utils.py#L291
-def seaborn_despine(
-    fig=None,
-    ax=None,
-    top=True,
-    right=True,
-    left=False,
-    bottom=False,
-    offset=None,
-    trim=False,
-):
+def seaborn_despine(fig=None, ax=None, top=True, right=True, left=False, bottom=False, offset=None, trim=False):
     """Remove the top and right spines from plot(s).
     fig : matplotlib figure, optional
         Figure to despine all axes of, defaults to the current figure.

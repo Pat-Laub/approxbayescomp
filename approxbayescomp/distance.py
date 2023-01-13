@@ -86,7 +86,7 @@ def wass_2Ddist_approx(ssData, ssFake):
     permutFake = np.argsort(hilbert_curve.distances_from_points(ssFake.astype(int)))
 
     diff = ssData[permut, :] - ssFake[permutFake, :]
-    sqrtSumSqrs = np.sqrt(np.sum(diff ** 2, axis=1))
+    sqrtSumSqrs = np.sqrt(np.sum(diff**2, axis=1))
     dist = np.mean(sqrtSumSqrs)
 
     return dist

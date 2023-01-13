@@ -23,11 +23,7 @@ from tqdm.auto import tqdm  # type: ignore
 
 from .distance import wasserstein
 from .plot import plot_posteriors
-from .simulate import (
-    sample_discrete_dist,
-    sample_multivariate_normal,
-    simulate_claim_data,
-)
+from .simulate import sample_discrete_dist, sample_multivariate_normal, simulate_claim_data
 from .weighted import systematic_resample
 
 # Suppress a numba.PerformanceWarning
@@ -41,20 +37,14 @@ def numba_seed(seed):
 
 Psi = collections.namedtuple("Psi", ["name", "param"], defaults=["sum", 0.0])
 
-Model = collections.namedtuple(
-    "Model",
-    ["freq", "sev", "psi", "obsFreqs"],
-    defaults=["ones", None, None, None],
-)
+Model = collections.namedtuple("Model", ["freq", "sev", "psi", "obsFreqs"], defaults=["ones", None, None, None])
 
 
 def kde(data: np.ndarray, weights: np.ndarray, bw: float = np.sqrt(2)):
     return gaussian_kde(data.T, weights=weights, bw_method=bw)
 
 
-SimpleKDE = collections.namedtuple(
-    "SimpleKDE", ["dataset", "weights", "d", "n", "inv_cov", "L", "log_det"]
-)
+SimpleKDE = collections.namedtuple("SimpleKDE", ["dataset", "weights", "d", "n", "inv_cov", "L", "log_det"])
 
 
 class Population(object):
@@ -91,26 +81,14 @@ class Population(object):
         """
         Create a deep copy of this population object.
         """
-        return Population(
-            self.models.copy(),
-            self.weights.copy(),
-            self.samples.copy(),
-            self.dists.copy(),
-            self.M,
-        )
+        return Population(self.models.copy(), self.weights.copy(), self.samples.copy(), self.dists.copy(), self.M)
 
     def subpopulation(self, keep) -> Population:
         """
         Create a subpopulation of particles from this population where we keep
         only the particles at the locations of True in the supplied boolean vector.
         """
-        return Population(
-            self.models[keep],
-            self.weights[keep],
-            self.samples[keep, :],
-            self.dists[keep],
-            self.M,
-        )
+        return Population(self.models[keep], self.weights[keep], self.samples[keep, :], self.dists[keep], self.M)
 
     def combine(self, other) -> Population:
         """
@@ -125,9 +103,7 @@ class Population(object):
         # https://eprints.qut.edu.au/132155/1/Leah_South_Thesis.pdf
         popWeights = np.array((self.total_ess(), other.total_ess()), dtype=np.float64)
         popWeights /= sum(popWeights)
-        weights = np.concatenate(
-            [popWeights[0] * self.weights, popWeights[1] * other.weights]
-        )
+        weights = np.concatenate([popWeights[0] * self.weights, popWeights[1] * other.weights])
 
         return Population(ms, weights, samples, dists, self.M)
 
@@ -168,7 +144,7 @@ class Population(object):
         for modelNum in set(self.models):
             weightsForThisModel = self.weights[self.models == modelNum]
             weightsForThisModel /= np.sum(weightsForThisModel)
-            essPerModel.append(int(np.round(1 / np.sum(weightsForThisModel ** 2))))
+            essPerModel.append(int(np.round(1 / np.sum(weightsForThisModel**2))))
 
         return tuple(essPerModel)
 
@@ -259,7 +235,7 @@ def uniform_pdf(theta, lower, upper, normConst):
     # float64(
     #     float64[:], int64, int64, float64[:, :], float64[:], float64[:, :], float64
     # ),
-    nogil=True,
+    nogil=True
 )
 def gaussian_kde_logpdf(x, d, n, dataset, weights, inv_cov, log_det):
     """
@@ -298,15 +274,7 @@ def index_generator(rg, weights):
 
 
 def _sample_one_first_iteration(
-    seed,
-    modelPrior,
-    models,
-    priors,
-    sumstats,
-    distance,
-    ssData,
-    T,
-    simulatorUsesOldNumpyRNG,
+    seed, modelPrior, models, priors, sumstats, distance, ssData, T, simulatorUsesOldNumpyRNG
 ):
     rg = default_rng(seed)
     rnd.seed(seed)
@@ -323,18 +291,12 @@ def _sample_one_first_iteration(
     if type(model) == Model:
         claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta)
         if type(model.freq) == str and model.freq.startswith("bivariate"):
-            xFake1 = _compute_psi(
-                claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param
-            )
-            xFake2 = _compute_psi(
-                claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param
-            )
+            xFake1 = _compute_psi(claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param)
+            xFake2 = _compute_psi(claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param)
 
             xFake = np.vstack([xFake1, xFake2]).T
         else:
-            xFake = _compute_psi(
-                claimsFake[0], claimsFake[1], model.psi.name, model.psi.param
-            )
+            xFake = _compute_psi(claimsFake[0], claimsFake[1], model.psi.name, model.psi.param)
     else:
         if simulatorUsesOldNumpyRNG:
             xFake = model(theta)
@@ -378,10 +340,7 @@ def sample_particles(
     acceptedParticles = []
     numAttempts = 0
 
-    while (
-        len(acceptedParticles) < stopTaskAfterNParticles
-        and numAttempts < simulationBudget
-    ):
+    while len(acceptedParticles) < stopTaskAfterNParticles and numAttempts < simulationBudget:
         numAttempts += 1
 
         if not systematic:
@@ -413,17 +372,11 @@ def sample_particles(
         if type(model) == Model:
             claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta)
             if type(model.freq) == str and model.freq.startswith("bivariate"):
-                xFake1 = _compute_psi(
-                    claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param
-                )
-                xFake2 = _compute_psi(
-                    claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param
-                )
+                xFake1 = _compute_psi(claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param)
+                xFake2 = _compute_psi(claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param)
                 xFake = np.vstack([xFake1, xFake2]).T
             else:
-                xFake = _compute_psi(
-                    claimsFake[0], claimsFake[1], model.psi.name, model.psi.param
-                )
+                xFake = _compute_psi(claimsFake[0], claimsFake[1], model.psi.name, model.psi.param)
         else:
             if simulatorUsesOldNumpyRNG:
                 xFake = model(theta)
@@ -489,15 +442,7 @@ def sample_population(
         seeds = (s.generate_state(1)[0] for s in sg.spawn(popSize))
         results = parallel(
             sample_first_iteration(
-                seed,
-                modelPrior,
-                models,
-                priors,
-                sumstats,
-                distance,
-                ssData,
-                T,
-                simulatorUsesOldNumpyRNG,
+                seed, modelPrior, models, priors, sumstats, distance, ssData, T, simulatorUsesOldNumpyRNG
             )
             for seed in seeds
         )
@@ -577,9 +522,7 @@ def sample_population(
             # the simulation budget for the next time around
             numParticlesLeft = popSize - numParticles
             if numParticlesLeft > 0 and not strictPopulationSize:
-                estNumSimsRequired = (
-                    1.1 * numParticlesLeft * (numSims / max(numParticles, 1))
-                )
+                estNumSimsRequired = 1.1 * numParticlesLeft * (numSims / max(numParticles, 1))
                 simulationBudget = int(np.ceil(estNumSimsRequired / numParallelTasks))
 
         # bar.close()
@@ -593,14 +536,7 @@ def sample_population(
     return fit, numSims
 
 
-def smc_setup(
-    obs,
-    modelPrior,
-    models,
-    priors,
-    sumstats,
-    distance,
-):
+def smc_setup(obs, modelPrior, models, priors, sumstats, distance):
     obs = np.asarray(obs, dtype=float).squeeze()
     T = obs.shape[0]
 
@@ -644,18 +580,7 @@ def smc_setup(
 
     newModels = tuple(newModels)
 
-    return (
-        obs,
-        T,
-        modelPrior,
-        priors,
-        newModels,
-        numSumStats,
-        numZerosData,
-        sumstats,
-        distance,
-        ssData,
-    )
+    return (obs, T, modelPrior, priors, newModels, numSumStats, numZerosData, sumstats, distance, ssData)
 
 
 def take_best_n_particles(fit: Population, n: int) -> Tuple[Population, float]:
@@ -667,9 +592,7 @@ def take_best_n_particles(fit: Population, n: int) -> Tuple[Population, float]:
     return fit.subpopulation(sortInds[:n]), fit.dists[sortInds[n - 1]]
 
 
-def reduce_population_size(
-    fit: Population, targetESS: float, epsMin: float
-) -> Tuple[Population, float]:
+def reduce_population_size(fit: Population, targetESS: float, epsMin: float) -> Tuple[Population, float]:
     """
     Create a subpopulation of particles by discarding the worst particles until the
     ESS drops to a target value. A particle's quality is assessed by its distance value.
@@ -731,9 +654,7 @@ def print_update(t, eps, elapsed, numSims, totalSimulationCost, fit, nextFit):
     of the just-sampled population, and of the subpopulation which was
     prepared for the next round.
     """
-    update = (
-        f"Finished SMC iteration {t}, " if t > 0 else "Finished sampling from prior, "
-    )
+    update = f"Finished SMC iteration {t}, " if t > 0 else "Finished sampling from prior, "
     update += f"eps = {eps:.2f}, "
     elapsedMins = np.round(elapsed / 60, 1)
     update += f"time = {np.round(elapsed)}s / {elapsedMins}m, "
@@ -774,24 +695,8 @@ def smc(
     if numProcs == 1:
         strictPopulationSize = True
 
-    (
-        obs,
-        T,
-        modelPrior,
-        priors,
-        models,
-        numSumStats,
-        numZerosData,
-        sumstats,
-        distance,
-        ssData,
-    ) = smc_setup(
-        obs,
-        modelPrior,
-        models,
-        priors,
-        sumstats,
-        distance,
+    (obs, T, modelPrior, priors, models, numSumStats, numZerosData, sumstats, distance, ssData) = smc_setup(
+        obs, modelPrior, models, priors, sumstats, distance
     )
 
     sg = SeedSequence(seed)
@@ -853,9 +758,7 @@ def smc(
             nextFit, eps = prepare_next_population(t == numIters, popSize, epsMin, fit)
 
             if verbose:
-                print_update(
-                    t, eps, elapsed, numSims, totalSimulationCost, fit, nextFit
-                )
+                print_update(t, eps, elapsed, numSims, totalSimulationCost, fit, nextFit)
 
             fit = nextFit
             prevFit = nextFit
