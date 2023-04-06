@@ -46,13 +46,13 @@ class IndependentPrior(object):
         self.names = names
 
     def pdf(self, theta):
-        list_lik_prior = []
+        density = 1.0
         for i, theta_i in enumerate(theta.reshape(-1)):
             if self.types[i] == "discrete":
-                list_lik_prior.append(self.marginals[i].pmf(theta_i))
+                density *= self.marginals[i].pmf(theta_i)
             else:
-                list_lik_prior.append(self.marginals[i].pdf(theta_i))
-        return np.prod(list_lik_prior)
+                density *= self.marginals[i].pdf(theta_i)
+        return density
 
     def sample(self, rg=None):
         if rg is None:
