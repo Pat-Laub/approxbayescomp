@@ -12,9 +12,11 @@ To install simply run
 
 `pip install -U approxbayescomp`
 
+<!--
 Soon, it will be possible to install using `conda`; at that point the preferred method will be to run
 
 `conda install -c conda-forge approxbayescomp`
+-->
 
 The source code for the package is available on [Github](https://github.com/Pat-Laub/approxbayescomp).
 
