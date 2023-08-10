@@ -87,16 +87,23 @@ rg = rnd.default_rng(123)
 freqs, sevs = abc.simulate_claim_data(rg, T, freq, sev, trueTheta)
 xData = abc.compute_psi(freqs, sevs, psi)
 
+
 # Specify models to fit
-model1 = abc.Model("poisson", "exponential", psi)
-model2 = abc.Model("geometric", "exponential", psi)
+def model1(rg, theta):
+    return simulate_poisson_exponential_maxs_new_rng(rg, theta, len(xData))
+
+
+def model2(rg, theta):
+    return simulate_geometric_exponential_maxs_new_rng(rg, theta, len(xData))
+
+
+models = (model1, model2)
 
 prior1 = abc.IndependentUniformPrior([(0, 10), (0, 20)], ("λ", "μ"))
 prior2 = abc.IndependentUniformPrior([(0, 1), (0, 20)], ("p", "μ"))
 
 # TODO: Allow differing numTheta for each model.
 
-models = (model1, model2)
 priors = (prior1, prior2)
 
 epsMin = 0.5
@@ -119,13 +126,23 @@ def test_simulation_size():
 def test_partially_observed_model():
     # Try fitting the same model but with the frequencies observed
     print("\ntest_partially_observed_model()\n")
-    model = abc.Model(freqs, "exponential", psi)
     prior = abc.IndependentUniformPrior([(0, 20)], ("μ"))
 
+    def simulate_exponential_maxs(rg, theta):
+        thetaSev = theta
+        scale = thetaSev
+        maxClaims = np.empty(T, np.float64)
+        for t in range(T):
+            claims = scale * rg.exponential(size=freqs[t])
+            if freqs[t] > 0:
+                maxClaims[t] = np.max(claims)
+            else:
+                maxClaims[t] = 0
+        return maxClaims
+
+    model = simulate_exponential_maxs
     epsMin = 0.1
-    fit = abc.smc(
-        numItersData, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1
-    )
+    fit = abc.smc(numItersData, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, 1)
 
 
@@ -138,17 +155,13 @@ def test_full_model():
 def test_eps_min():
     # Check that it will stop after reaching the epsilon target.
     print("\ntest_eps_min()\n")
-    fit = abc.smc(
-        numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1
-    )
+    fit = abc.smc(numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin)
 
 
 def test_match_zeros():
     print("\ntest_match_zeros()\n")
-    fit = abc.smc(
-        numIters, popSize, xData, models, priors, matchZeros=True, verbose=True, seed=1
-    )
+    fit = abc.smc(numIters, popSize, xData, models, priors, matchZeros=True, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin)
 
 
@@ -164,15 +177,7 @@ def test_simulator_with_new_rng():
     models = (model1, model2)
 
     fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        models,
-        priors,
-        epsMin=epsMin,
-        verbose=True,
-        seed=1,
-        simulatorUsesOldNumpyRNG=False,
+        numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1, simulatorUsesOldNumpyRNG=False
     )
     check_fit(fit, popSize, epsMin)
 
@@ -189,7 +194,7 @@ def test_simulator_with_old_rng():
     models = (model1, model2)
 
     fit = abc.smc(
-        numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1
+        numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1, simulatorUsesOldNumpyRNG=True
     )
     check_fit(fit, popSize, epsMin)
 
@@ -198,17 +203,7 @@ def test_multiple_processes():
     print("\ntest_multiple_processes()\n")
     numProcs = 4
 
-    fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        models,
-        priors,
-        numProcs=numProcs,
-        epsMin=epsMin,
-        verbose=True,
-        seed=1,
-    )
+    fit = abc.smc(numIters, popSize, xData, models, priors, numProcs=numProcs, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin)
 
 
@@ -253,6 +248,7 @@ def test_dynamic_time_warping():
         epsMin=epsMin,
         verbose=True,
         seed=1,
+        simulatorUsesOldNumpyRNG=True,
     )
     check_fit(fit, popSize, epsMin)
 

@@ -8,7 +8,7 @@ import collections
 import inspect
 import warnings
 from time import time
-from typing import Optional, Tuple
+from typing import Callable, Tuple
 
 import joblib  # type: ignore
 import matplotlib.pyplot as plt
@@ -22,18 +22,18 @@ from tqdm.auto import tqdm  # type: ignore
 from .distance import wasserstein
 from .plot import plot_posteriors
 from .population import Population
-from .psi import Psi, _compute_psi, compute_psi
-from .simulate import sample_discrete_dist, sample_multivariate_normal, simulate_claim_data
-from .utils import *
+from .simulate import sample_discrete_dist, sample_multivariate_normal
+from .utils import numba_seed, index_generator, gaussian_kde_logpdf
 
 # Suppress a numba.PerformanceWarning
 warnings.filterwarnings("ignore", category=NumbaPerformanceWarning)
 
-Model = collections.namedtuple("Model", ["freq", "sev", "psi", "obsFreqs"], defaults=["ones", None, None, None])
+# Create a type alias for the model function
+Model = Callable[[np.ndarray], np.ndarray]
 
 
 def _sample_one_first_iteration(
-    seed, modelPrior, models, priors, sumstats, distance, ssData, T, simulatorUsesOldNumpyRNG
+    seed, modelPrior, models: Tuple[Model], priors, sumstats, distance, ssData, T, simulatorUsesOldNumpyRNG
 ):
     rg = default_rng(seed)
     rnd.seed(seed)
@@ -47,20 +47,10 @@ def _sample_one_first_iteration(
 
     theta = prior.sample(rg)
 
-    if type(model) == Model:
-        claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta)
-        if type(model.freq) == str and model.freq.startswith("bivariate"):
-            xFake1 = _compute_psi(claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param)
-            xFake2 = _compute_psi(claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param)
-
-            xFake = np.vstack([xFake1, xFake2]).T
-        else:
-            xFake = _compute_psi(claimsFake[0], claimsFake[1], model.psi.name, model.psi.param)
+    if simulatorUsesOldNumpyRNG:
+        xFake = model(theta)
     else:
-        if simulatorUsesOldNumpyRNG:
-            xFake = model(theta)
-        else:
-            xFake = model(rg, theta)
+        xFake = model(rg, theta)
 
     if sumstats is not None:
         dist = distance(ssData, sumstats(xFake))
@@ -75,7 +65,7 @@ def sample_particles(
     simulationBudget,
     stopTaskAfterNParticles,
     modelPrior,
-    models,
+    models: Tuple[Model],
     priors,
     kdes,
     sumstats,
@@ -128,19 +118,10 @@ def sample_particles(
         if priorVal <= 0:
             continue
 
-        if type(model) == Model:
-            claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta)
-            if type(model.freq) == str and model.freq.startswith("bivariate"):
-                xFake1 = _compute_psi(claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param)
-                xFake2 = _compute_psi(claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param)
-                xFake = np.vstack([xFake1, xFake2]).T
-            else:
-                xFake = _compute_psi(claimsFake[0], claimsFake[1], model.psi.name, model.psi.param)
+        if simulatorUsesOldNumpyRNG:
+            xFake = model(theta)
         else:
-            if simulatorUsesOldNumpyRNG:
-                xFake = model(theta)
-            else:
-                xFake = model(rg, theta)
+            xFake = model(rg, theta)
 
         if matchZeros and not np.all(np.sum(xFake == 0, axis=0) == numZerosData):
             continue
@@ -173,7 +154,7 @@ def sample_population(
     t,
     parallel,
     modelPrior,
-    models,
+    models: Tuple[Model],
     priors,
     prevFit,
     sumstats,
@@ -295,14 +276,14 @@ def sample_population(
     return fit, numSims
 
 
-def smc_setup(obs, modelPrior, models, priors, sumstats, distance):
+def smc_setup(obs, modelPrior, models: Tuple[Model] | Model, priors, sumstats, distance):
     obs = np.asarray(obs, dtype=float).squeeze()
     T = obs.shape[0]
 
-    if type(models) == Model or callable(models):
+    if callable(models):
         modelPrior = np.array([1.0])
-        models = [models]
-        priors = [priors]
+        models: Tuple[Model] = (models,)
+        priors = (priors,)
 
     M = len(models)
 
@@ -325,21 +306,7 @@ def smc_setup(obs, modelPrior, models, priors, sumstats, distance):
     else:
         numSumStats = 1
 
-    newModels = []
-    for model in models:
-        if type(model) == Model:
-            if model.psi:
-                newPsi = model.psi
-            else:
-                newPsi = Psi("severities")
-            newModel = Model(model.freq, model.sev, newPsi)
-        else:
-            newModel = model
-        newModels.append(newModel)
-
-    newModels = tuple(newModels)
-
-    return (obs, T, modelPrior, priors, newModels, numSumStats, numZerosData, sumstats, distance, ssData)
+    return (obs, T, modelPrior, priors, models, numSumStats, numZerosData, sumstats, distance, ssData)
 
 
 def take_best_n_particles(fit: Population, n: int) -> Tuple[Population, float]:
@@ -433,7 +400,7 @@ def smc(
     numIters,
     popSize,
     obs,
-    models,
+    models: Tuple[Model] | Model,
     priors,
     distance=wasserstein,
     sumstats=None,
@@ -446,7 +413,7 @@ def smc(
     recycling=True,
     systematic=False,
     strictPopulationSize=False,
-    simulatorUsesOldNumpyRNG=True,
+    simulatorUsesOldNumpyRNG=False,
     showProgressBar=False,
     plotProgress=False,
     plotProgressRefLines=None,
