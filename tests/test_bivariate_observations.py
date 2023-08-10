@@ -34,8 +34,17 @@ xData = np.vstack([xData1, xData2]).T
 
 print(f"Number of zeros in the data: {np.sum(xData == 0)}")
 
+
 # Specify model to fit
-model = abc.Model(freq, sev, psi)
+def simulate_bivariate_claims_gsl(rg, theta):
+    claimsData = abc.simulate_claim_data(rg, T, freq, sev, theta)
+    xData1 = abc.compute_psi(claimsData[0][0], claimsData[0][1], psi)
+    xData2 = abc.compute_psi(claimsData[1][0], claimsData[1][1], psi)
+    return np.vstack([xData1, xData2]).T
+
+
+model = simulate_bivariate_claims_gsl
+
 prior = abc.IndependentUniformPrior([(0, 2), (0, 50), (0, 50), (0, 100), (0, 100)])
 
 epsMin = 200
@@ -57,16 +66,7 @@ def test_simulation_size():
 
 def test_full_model():
     print("\ntest_full_model()\n")
-    fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        model,
-        prior,
-        distance=abc.wasserstein2D,
-        verbose=True,
-        seed=1,
-    )
+    fit = abc.smc(numIters, popSize, xData, model, prior, distance=abc.wasserstein2D, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, prior.dim)
 
 
@@ -74,15 +74,7 @@ def test_eps_min():
     # Check that SMC will stop early after reaching the epsilon target.
     print("\ntest_eps_min()\n")
     fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        model,
-        prior,
-        epsMin=epsMin,
-        distance=abc.wasserstein2D,
-        verbose=True,
-        seed=1,
+        numIters, popSize, xData, model, prior, epsMin=epsMin, distance=abc.wasserstein2D, verbose=True, seed=1
     )
     check_fit(fit, popSize, epsMin, prior.dim)
 
@@ -91,15 +83,7 @@ def test_match_zeros():
     # Check that matchZeros=True is working.
     print("\ntest_match_zeros()\n")
     fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        model,
-        prior,
-        matchZeros=True,
-        distance=abc.wasserstein2D,
-        verbose=True,
-        seed=1,
+        numIters, popSize, xData, model, prior, matchZeros=True, distance=abc.wasserstein2D, verbose=True, seed=1
     )
     check_fit(fit, popSize, epsMin, prior.dim)
 
@@ -146,17 +130,7 @@ def test_pandas_input():
     print("\ntest_pandas_input()\n")
     df = pd.DataFrame({"x": xData[:, 0], "y": xData[:, 1]})
 
-    fit = abc.smc(
-        numIters,
-        popSize,
-        df,
-        model,
-        prior,
-        epsMin=epsMin,
-        distance=abc.wasserstein2D,
-        verbose=True,
-        seed=1,
-    )
+    fit = abc.smc(numIters, popSize, df, model, prior, epsMin=epsMin, distance=abc.wasserstein2D, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, prior.dim)
 
 
@@ -165,16 +139,7 @@ def test_nonuniform_prior():
     means = (1, 25, 25, 50, 50)
     marginals = [st.expon(scale=mean) for mean in means]
     prior = abc.IndependentPrior(marginals)
-    fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        model,
-        prior,
-        distance=abc.wasserstein2D,
-        verbose=True,
-        seed=1,
-    )
+    fit = abc.smc(numIters, popSize, xData, model, prior, distance=abc.wasserstein2D, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, prior.dim)
 
 

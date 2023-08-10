@@ -3,7 +3,7 @@
 # black
 repos:
 - repo: https://github.com/ambv/black
-  rev: 21.12b0
+  rev: 23.7.0
   hooks:
     - id: black
       args: # arguments to configure black
@@ -27,7 +27,7 @@ repos:
 
 # flake8
 - repo: https://github.com/pycqa/flake8
-  rev: 4.0.1
+  rev: 6.1.0
   hooks:
   - id: flake8
     args: # arguments to configure flake8

@@ -7,7 +7,7 @@ import scipy.stats as st
 class TestIndependentUniformPrior(unittest.TestCase):
     def setUp(self):
         self.bounds = [(0, 1), (2, 3), (4, 5)]
-        self.names = ['x', 'y', 'z']
+        self.names = ["x", "y", "z"]
         self.prior = abc.IndependentUniformPrior(self.bounds, self.names)
 
     def test_pdf(self):
@@ -34,7 +34,7 @@ class TestIndependentPrior(unittest.TestCase):
 
     def test_sample(self):
         rg = np.random.default_rng(0)
-        expected_sample = np.array([0.12573 , 0.269787])
+        expected_sample = np.array([0.12573, 0.269787])
         np.testing.assert_allclose(self.prior.sample(rg), expected_sample, rtol=1e-5)
 
 

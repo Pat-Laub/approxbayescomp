@@ -63,7 +63,12 @@ print(f"Number of zeros in the data: {np.sum(xData == 0)}")
 # Specify model to fit
 params = ("λ", "β", "δ")
 prior = abc.IndependentUniformPrior([(0, 10), (0, 20), (-1, 1)], params)
-model = abc.Model("poisson", "frequency dependent exponential", psi)
+
+
+def model(rg, theta):
+    return simulate_dependent_poisson_exponential_sums_new_rng(rg, theta, len(xData))
+
+
 epsMin = 6
 
 
@@ -86,11 +91,23 @@ def test_partially_observed_model():
     print("\ntest_partially_observed_model()\n")
     params = ("β", "δ")
     prior = abc.IndependentUniformPrior([(0, 20), (-1, 1)], params)
-    model = abc.Model(freqs, "frequency dependent exponential", psi)
+
+    def simulate_dependent_exponential_sums(rg, theta):
+        thetaSev = theta
+        scale, cor = thetaSev
+
+        aggClaims = np.empty(T, np.float64)
+        for t in range(T):
+            claims = scale * np.exp(cor * freqs[t]) * rg.exponential(size=freqs[t])
+            aggClaims[t] = np.sum(claims)
+
+        return aggClaims
+
+    model = simulate_dependent_exponential_sums
 
     epsMin = 3
     fit = abc.smc(
-        numItersData, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1
+        numItersData, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1, simulatorUsesOldNumpyRNG=False
     )
     check_fit(fit, popSize, epsMin, prior.dim)
 
@@ -104,27 +121,21 @@ def test_full_model():
 def test_eps_min():
     # Check that SMC will stop early after reaching the epsilon target.
     print("\ntest_eps_min()\n")
-    fit = abc.smc(
-        numIters, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1
-    )
+    fit = abc.smc(numIters, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, prior.dim)
 
 
 def test_match_zeros():
     # Check that matchZeros=True is working.
     print("\ntest_match_zeros()\n")
-    fit = abc.smc(
-        numIters, popSize, xData, model, prior, matchZeros=True, verbose=True, seed=1
-    )
+    fit = abc.smc(numIters, popSize, xData, model, prior, matchZeros=True, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, prior.dim)
 
 
 def test_systematic_sampling():
     # Check that the systematic sampling option is working.
     print("\ntest_systematic_sampling()\n")
-    fit = abc.smc(
-        numIters, popSize, xData, model, prior, systematic=True, verbose=True, seed=1
-    )
+    fit = abc.smc(numIters, popSize, xData, model, prior, systematic=True, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, prior.dim)
 
 
@@ -132,20 +143,10 @@ def test_simulator_with_new_rng():
     print("\ntest_simulator_with_new_rng()\n")
 
     def model(rg, theta):
-        return simulate_dependent_poisson_exponential_sums_new_rng(
-            rg, theta, len(xData)
-        )
+        return simulate_dependent_poisson_exponential_sums_new_rng(rg, theta, len(xData))
 
     fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        model,
-        prior,
-        epsMin=epsMin,
-        verbose=True,
-        seed=1,
-        simulatorUsesOldNumpyRNG=False,
+        numIters, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1, simulatorUsesOldNumpyRNG=False
     )
     check_fit(fit, popSize, epsMin, prior.dim)
 
@@ -157,7 +158,7 @@ def test_simulator_with_old_rng():
         return simulate_dependent_poisson_exponential_sums_old_rng(theta, len(xData))
 
     fit = abc.smc(
-        numIters, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1
+        numIters, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1, simulatorUsesOldNumpyRNG=True
     )
     check_fit(fit, popSize, epsMin, prior.dim)
 
@@ -166,17 +167,7 @@ def test_multiple_processes():
     print("\ntest_multiple_processes()\n")
     numProcs = 4
 
-    fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        model,
-        prior,
-        numProcs=numProcs,
-        epsMin=epsMin,
-        verbose=True,
-        seed=1,
-    )
+    fit = abc.smc(numIters, popSize, xData, model, prior, numProcs=numProcs, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, prior.dim)
 
 
@@ -209,9 +200,7 @@ def test_pandas_input():
     print("\ntest_pandas_input()\n")
     df = pd.DataFrame({"x": xData})
 
-    fit = abc.smc(
-        numIters, popSize, df["x"], model, prior, epsMin=epsMin, verbose=True, seed=1
-    )
+    fit = abc.smc(numIters, popSize, df["x"], model, prior, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, prior.dim)
 
 
@@ -232,6 +221,7 @@ def test_dynamic_time_warping():
         epsMin=epsMin,
         verbose=True,
         seed=1,
+        simulatorUsesOldNumpyRNG=True,
     )
     check_fit(fit, popSize, epsMin, prior.dim)
 
