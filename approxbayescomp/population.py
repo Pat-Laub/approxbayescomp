@@ -18,7 +18,7 @@ class Population:
         self.models = np.array(models)
         self.weights = np.array(weights)
         self.weights /= np.sum(weights)
-        if type(samples) == list:
+        if isinstance(samples, list):
             self.samples = np.vstack(samples)
         else:
             self.samples = np.array(samples)
@@ -108,40 +108,32 @@ class Population:
 
         return tuple(kdes)
 
+    def clone(self) -> "Population":
+        """
+        Create a deep copy of this population object.
+        """
+        return Population(self.models.copy(), self.weights.copy(), self.samples.copy(), self.dists.copy(), self.M)
 
-def clone(self) -> Population:
-    """
-    Create a deep copy of this population object.
-    """
-    return Population(self.models.copy(), self.weights.copy(), self.samples.copy(), self.dists.copy(), self.M)
+    def subpopulation(self, keep) -> "Population":
+        """
+        Create a subpopulation of particles from this population where we keep
+        only the particles at the locations of True in the supplied boolean vector.
+        """
+        return Population(self.models[keep], self.weights[keep], self.samples[keep, :], self.dists[keep], self.M)
 
+    def combine(self, other: "Population") -> "Population":
+        """
+        Combine this population with another to create one larger population.
+        """
+        ms = np.concatenate([self.models, other.models])
+        samples = np.concatenate([self.samples, other.samples], axis=0)
+        dists = np.concatenate([self.dists, other.dists])
 
-def subpopulation(self, keep) -> Population:
-    """
-    Create a subpopulation of particles from this population where we keep
-    only the particles at the locations of True in the supplied boolean vector.
-    """
-    return Population(self.models[keep], self.weights[keep], self.samples[keep, :], self.dists[keep], self.M)
+        # Some care needs to be taken to adjust the weights when combining.
+        # See Appendix B.1 of Leah South's PhD thesis.
+        # https://eprints.qut.edu.au/132155/1/Leah_South_Thesis.pdf
+        popWeights = np.array((self.total_ess(), other.total_ess()), dtype=np.float64)
+        popWeights /= sum(popWeights)
+        weights = np.concatenate([popWeights[0] * self.weights, popWeights[1] * other.weights])
 
-
-def combine(self, other) -> Population:
-    """
-    Combine this population with another to create one larger population.
-    """
-    ms = np.concatenate([self.models, other.models])
-    samples = np.concatenate([self.samples, other.samples], axis=0)
-    dists = np.concatenate([self.dists, other.dists])
-
-    # Some care needs to be taken to adjust the weights when combining.
-    # See Appendix B.1 of Leah South's PhD thesis.
-    # https://eprints.qut.edu.au/132155/1/Leah_South_Thesis.pdf
-    popWeights = np.array((self.total_ess(), other.total_ess()), dtype=np.float64)
-    popWeights /= sum(popWeights)
-    weights = np.concatenate([popWeights[0] * self.weights, popWeights[1] * other.weights])
-
-    return Population(ms, weights, samples, dists, self.M)
-
-
-Population.clone = clone
-Population.subpopulation = subpopulation
-Population.combine = combine
+        return Population(ms, weights, samples, dists, self.M)
