@@ -1,0 +1,34 @@
+[project]
+name = "approxbayescomp"
+version = "0.2.0"
+description = "Approximate Bayesian Computation for actuaries"
+readme = "README.md"
+#homepage = "https://github.com/Pat-Laub/approxbayescomp"
+license = { text = "MIT" }
+authors = [
+    { name = "Patrick Laub", email = "patrick.laub@gmail.com" },
+    { name = "Pierre-Olivier Goffard" }
+]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Intended Audience :: Science/Research"
+]
+#packages = ["approxbayescomp"]
+#include-package-data = true
+dependencies = [
+    "joblib",
+    "numba",
+    "numpy",
+    "scipy",
+    "tqdm",
+    "matplotlib",
+    "hilbertcurve"
+]
+
+[project.optional-dependencies]
+dev = ["black", "dtaidistance", "pandas", "pre-commit", "pytest"]
+
+[build-system]
+requires = ["setuptools", "wheel"]
