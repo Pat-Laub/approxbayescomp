@@ -201,7 +201,7 @@ def simulate_claim_data(rg, T, freq, sev, theta):
     # theta_sev = parameters of the claim sizes distribution
 
     # Echantillon de nombre de sinistres
-    if type(freq) == list or type(freq) == np.ndarray:
+    if isinstance(freq, list) or isinstance(freq, np.ndarray):
         theta_sev = theta
         freqs = freq
     elif freq is None or freq == "ones":
