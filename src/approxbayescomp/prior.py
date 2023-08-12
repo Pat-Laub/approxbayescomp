@@ -15,7 +15,15 @@ def uniform_prior_pdf(theta, lower, upper, normConst):
     return normConst
 
 
-class IndependentUniformPrior(object):
+class Prior(object):
+    def pdf(self, theta):
+        raise NotImplementedError
+
+    def sample(self, rg=None):
+        raise NotImplementedError
+
+
+class IndependentUniformPrior(Prior):
     def __init__(self, bounds, names=None):
         self.dim = len(bounds)
         self.lower = np.array([bound[0] for bound in bounds], dtype=np.float64)
@@ -34,7 +42,7 @@ class IndependentUniformPrior(object):
         return self.lower + self.widths * rg.uniform(size=self.dim)
 
 
-class IndependentPrior(object):
+class IndependentPrior(Prior):
     def __init__(self, marginals, names=None, types=None):
         self.marginals = marginals
         self.dim = len(marginals)
