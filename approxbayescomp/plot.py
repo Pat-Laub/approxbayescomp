@@ -2,7 +2,7 @@
 """
 @author: Patrick Laub and Pierre-O Goffard
 """
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt  # type: ignore
 import numpy as np
 from numpy.random import choice, default_rng
 from scipy.stats import gaussian_kde  # type: ignore

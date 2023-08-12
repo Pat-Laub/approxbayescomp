@@ -8,7 +8,7 @@ numpy arrays.
 Original version from:
     https://github.com/nudomarinero/wquantiles/blob/master/weighted.py
 """
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt  # type: ignore
 import numpy as np
 import numpy.random as rnd
 from numba import float64, int64, njit  # type: ignore

@@ -1,5 +1,5 @@
 import collections
-from typing import Any, Iterable
+from typing import Any, Generator, Iterable
 from numba import float64, int64, njit, void  # type: ignore
 from scipy.stats import gaussian_kde  # type: ignore
 
@@ -52,7 +52,7 @@ def gaussian_kde_logpdf(x, d, n, dataset, weights, inv_cov, log_det):
     return np.log(np.sum(np.exp(0.5 * log_to_sum)))
 
 
-def index_generator(rg, weights):
+def index_generator(rg: rnd.Generator, weights: np.ndarray) -> Generator[int, None, None]:
     N = len(weights)
     inds = range(N)
     uniform = len(set(weights)) == 1
