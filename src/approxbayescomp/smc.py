@@ -8,15 +8,15 @@ import collections
 import inspect
 import warnings
 from time import time
-from typing import Callable, Dict, Tuple, List
+from typing import Callable, Dict, Optional, Tuple, List, Generator, cast
 
 import joblib  # type: ignore
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt  # type: ignore
 import numpy as np
 import numpy.random as rnd
 from numba import float64, int64, njit, void  # type: ignore
 from numba.core.errors import NumbaPerformanceWarning  # type: ignore
-from numpy.random import SeedSequence, default_rng, Generator  # type: ignore
+from numpy.random import SeedSequence, default_rng  # type: ignore
 from tqdm.auto import tqdm  # type: ignore
 
 from .distance import wasserstein
@@ -30,7 +30,7 @@ from .utils import numba_seed, index_generator, gaussian_kde_logpdf, make_iterab
 warnings.filterwarnings("ignore", category=NumbaPerformanceWarning)
 
 # Create a type alias for the model function
-Model = Callable[[np.ndarray], np.ndarray]
+Model = Callable[[np.ndarray], np.ndarray] | Callable[[rnd.Generator, np.ndarray], np.ndarray]
 
 
 def _sample_one_first_iteration(
@@ -49,9 +49,9 @@ def _sample_one_first_iteration(
     theta = prior.sample(rg)
 
     if simulatorUsesOldNumpyRNG:
-        xFake = model(theta)
+        xFake = model(theta)  # type: ignore
     else:
-        xFake = model(rg, theta)
+        xFake = model(rg, theta)  # type: ignore
 
     if sumstats is not None:
         dist = distance(ssData, sumstats(xFake))
@@ -64,7 +64,7 @@ def _sample_one_first_iteration(
 def sample_particles(
     seed,
     simulationBudget,
-    stopTaskAfterNParticles,
+    stopTaskAfterNParticles: Optional[int],
     modelPrior,
     models: Tuple[Model],
     priors: Tuple[Prior],
@@ -84,12 +84,12 @@ def sample_particles(
 
     if systematic:
         modelGen = index_generator(rg, modelPrior)
-        thetaGens: Dict[int, Generator] = {}
+        thetaGens: Dict[int, Generator[int, None, None]] = {}
 
     acceptedParticles: List[Tuple[int, Tuple, float, float]] = []
     numAttempts = 0
 
-    while len(acceptedParticles) < stopTaskAfterNParticles and numAttempts < simulationBudget:
+    while numAttempts < simulationBudget:
         numAttempts += 1
 
         if not systematic:
@@ -119,9 +119,9 @@ def sample_particles(
             continue
 
         if simulatorUsesOldNumpyRNG:
-            xFake = model(theta)
+            xFake = model(theta)  # type: ignore
         else:
-            xFake = model(rg, theta)
+            xFake = model(rg, theta)  # type: ignore
 
         if matchZeros and not np.all(np.sum(xFake == 0, axis=0) == numZerosData):
             continue
@@ -144,6 +144,9 @@ def sample_particles(
 
             if weight > 0:
                 acceptedParticles.append((m, theta, weight, dist))
+
+                if stopTaskAfterNParticles is not None and len(acceptedParticles) >= stopTaskAfterNParticles:
+                    break
 
     return acceptedParticles, numAttempts
 
@@ -216,7 +219,7 @@ def sample_population(
             # as it can find when given a fixed simulation budget.
             numParallelTasks = parallel.n_jobs
             simulationBudget = int(np.ceil(estNumSimsRequired / numParallelTasks))
-            stopTaskAfterNParticles = np.inf
+            stopTaskAfterNParticles = None
 
         # bar = tqdm(total=n, position=0, leave=False)
 
@@ -390,11 +393,11 @@ def print_update(t, eps, elapsed, numSims, totalSimulationCost, fit, nextFit):
 
 
 def smc(
-    numIters,
-    popSize,
-    obs,
+    numIters: int,
+    popSize: int,
+    obs: np.ndarray,
     models: Tuple[Model] | Model,
-    priors,
+    priors: Tuple[Prior] | Prior,
     distance=wasserstein,
     sumstats=None,
     modelPrior=None,
@@ -414,12 +417,12 @@ def smc(
     if numProcs == 1:
         strictPopulationSize = True
 
-    models: Tuple[Model] = make_iterable(models)
-    priors: Tuple[Prior] = make_iterable(priors)
+    models = cast(Tuple[Model], make_iterable(models))
+    priors = cast(Tuple[Prior], make_iterable(priors))
 
-    obs: np.ndarray = validate_obs(obs)
-    modelPrior: np.ndarray = validate_model_prior(modelPrior, len(models))
-    sumstats, distance = validate_distance(sumstats, distance)
+    obs = cast(np.ndarray, validate_obs(obs))
+    modelPrior = cast(np.ndarray, validate_model_prior(modelPrior, len(models)))
+    sumstats, distance = validate_distance(sumstats, distance)  # type: ignore
 
     numZerosData = np.sum(obs == 0, axis=0)
     ssData = get_summary_stats(obs, sumstats)
