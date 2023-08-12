@@ -8,7 +8,7 @@ import collections
 import inspect
 import warnings
 from time import time
-from typing import Callable, Tuple
+from typing import Callable, Dict, Tuple, List
 
 import joblib  # type: ignore
 import matplotlib.pyplot as plt
@@ -16,14 +16,15 @@ import numpy as np
 import numpy.random as rnd
 from numba import float64, int64, njit, void  # type: ignore
 from numba.core.errors import NumbaPerformanceWarning  # type: ignore
-from numpy.random import SeedSequence, default_rng  # type: ignore
+from numpy.random import SeedSequence, default_rng, Generator  # type: ignore
 from tqdm.auto import tqdm  # type: ignore
 
 from .distance import wasserstein
 from .plot import plot_posteriors
 from .population import Population
+from .prior import Prior
 from .simulate import sample_discrete_dist, sample_multivariate_normal
-from .utils import numba_seed, index_generator, gaussian_kde_logpdf
+from .utils import numba_seed, index_generator, gaussian_kde_logpdf, make_iterable
 
 # Suppress a numba.PerformanceWarning
 warnings.filterwarnings("ignore", category=NumbaPerformanceWarning)
@@ -33,7 +34,7 @@ Model = Callable[[np.ndarray], np.ndarray]
 
 
 def _sample_one_first_iteration(
-    seed, modelPrior, models: Tuple[Model], priors, sumstats, distance, ssData, T, simulatorUsesOldNumpyRNG
+    seed, modelPrior, models: Tuple[Model], priors, sumstats, distance, ssData, simulatorUsesOldNumpyRNG
 ):
     rg = default_rng(seed)
     rnd.seed(seed)
@@ -66,7 +67,7 @@ def sample_particles(
     stopTaskAfterNParticles,
     modelPrior,
     models: Tuple[Model],
-    priors,
+    priors: Tuple[Prior],
     kdes,
     sumstats,
     distance,
@@ -74,7 +75,6 @@ def sample_particles(
     matchZeros,
     numZerosData,
     ssData,
-    T,
     systematic,
     simulatorUsesOldNumpyRNG,
 ):
@@ -84,9 +84,9 @@ def sample_particles(
 
     if systematic:
         modelGen = index_generator(rg, modelPrior)
-        thetaGens = {}
+        thetaGens: Dict[int, Generator] = {}
 
-    acceptedParticles = []
+    acceptedParticles: List[Tuple[int, Tuple, float, float]] = []
     numAttempts = 0
 
     while len(acceptedParticles) < stopTaskAfterNParticles and numAttempts < simulationBudget:
@@ -155,7 +155,7 @@ def sample_population(
     parallel,
     modelPrior,
     models: Tuple[Model],
-    priors,
+    priors: Tuple[Prior],
     prevFit,
     sumstats,
     distance,
@@ -164,7 +164,6 @@ def sample_population(
     matchZeros,
     numZerosData,
     ssData,
-    T,
     recycling,
     systematic,
     prevNumSims,
@@ -182,7 +181,7 @@ def sample_population(
         seeds = (s.generate_state(1)[0] for s in sg.spawn(popSize))
         results = parallel(
             sample_first_iteration(
-                seed, modelPrior, models, priors, sumstats, distance, ssData, T, simulatorUsesOldNumpyRNG
+                seed, modelPrior, models, priors, sumstats, distance, ssData, simulatorUsesOldNumpyRNG
             )
             for seed in seeds
         )
@@ -239,7 +238,6 @@ def sample_population(
                     matchZeros,
                     numZerosData,
                     ssData,
-                    T,
                     systematic,
                     simulatorUsesOldNumpyRNG,
                 )
@@ -276,37 +274,32 @@ def sample_population(
     return fit, numSims
 
 
-def smc_setup(obs, modelPrior, models: Tuple[Model] | Model, priors, sumstats, distance):
-    obs = np.asarray(obs, dtype=float).squeeze()
-    T = obs.shape[0]
+def validate_obs(obs: np.ndarray) -> np.ndarray:
+    return np.asarray(obs, dtype=float).squeeze()
 
-    if callable(models):
-        modelPrior = np.array([1.0])
-        models: Tuple[Model] = (models,)
-        priors = (priors,)
 
-    M = len(models)
-
+def validate_model_prior(modelPrior, M) -> np.ndarray:
     if not modelPrior:
         modelPrior = np.ones(M) / M
+    return modelPrior
 
-    numZerosData = np.sum(obs == 0, axis=0)
 
+def validate_distance(
+    sumstats, distance
+) -> Tuple[Callable[[np.ndarray], np.ndarray], Callable[[np.ndarray, np.ndarray], float]]:
     if isinstance(distance, collections.abc.Sequence):
         sumstats = distance[0]
         distance = distance[1]
 
+    return sumstats, distance
+
+
+def get_summary_stats(obs, sumstats) -> np.ndarray:
     if sumstats is not None:
         ssData = sumstats(obs)
     else:
         ssData = obs
-
-    if not np.isscalar(ssData) and len(ssData) > 1:
-        numSumStats = len(np.array(ssData).flatten())
-    else:
-        numSumStats = 1
-
-    return (obs, T, modelPrior, priors, models, numSumStats, numZerosData, sumstats, distance, ssData)
+    return ssData
 
 
 def take_best_n_particles(fit: Population, n: int) -> Tuple[Population, float]:
@@ -421,14 +414,20 @@ def smc(
     if numProcs == 1:
         strictPopulationSize = True
 
-    (obs, T, modelPrior, priors, models, numSumStats, numZerosData, sumstats, distance, ssData) = smc_setup(
-        obs, modelPrior, models, priors, sumstats, distance
-    )
+    models: Tuple[Model] = make_iterable(models)
+    priors: Tuple[Prior] = make_iterable(priors)
+
+    obs: np.ndarray = validate_obs(obs)
+    modelPrior: np.ndarray = validate_model_prior(modelPrior, len(models))
+    sumstats, distance = validate_distance(sumstats, distance)
+
+    numZerosData = np.sum(obs == 0, axis=0)
+    ssData = get_summary_stats(obs, sumstats)
 
     sg = SeedSequence(seed)
 
     if verbose:
-        print_header(popSize, T, numSumStats, numProcs)
+        print_header(popSize, len(obs), len(ssData), numProcs)
 
     totalSimulationCost = 0
     eps = np.inf
@@ -460,7 +459,6 @@ def smc(
                     matchZeros,
                     numZerosData,
                     ssData,
-                    T,
                     recycling,
                     systematic,
                     numSims,

@@ -1,4 +1,5 @@
 import collections
+from typing import Any, Iterable
 from numba import float64, int64, njit, void  # type: ignore
 from scipy.stats import gaussian_kde  # type: ignore
 
@@ -68,3 +69,17 @@ def index_generator(rg, weights):
 
         for i in range(N):
             yield inds[(start + i) % N]
+
+
+def make_iterable(x: Any) -> Iterable[Any]:
+    """Ensure that the variable can be looped over.
+
+    Args:
+        x: The variable to check.
+
+    Returns:
+        The variable if it has a length, otherwise a tuple containing the variable.
+    """
+    if not isinstance(x, collections.abc.Iterable):
+        x = (x,)
+    return x
