@@ -33,8 +33,15 @@ warnings.filterwarnings("ignore", category=NumbaPerformanceWarning)
 Model = Callable[[np.ndarray], np.ndarray] | Callable[[rnd.Generator, np.ndarray], np.ndarray]
 
 
-def _sample_one_first_iteration(
-    seed, modelPrior, models: Tuple[Model], priors, sumstats, distance, ssData, simulatorUsesOldNumpyRNG
+def sample_one_first_iteration(
+    seed: int,
+    modelPrior: np.ndarray,
+    models: Tuple[Model],
+    priors: Tuple[Prior],
+    sumstats: Optional[Callable[[np.ndarray], np.ndarray]],
+    distance: Callable[[np.ndarray, np.ndarray], float],
+    ssData: np.ndarray,
+    simulatorUsesOldNumpyRNG: bool,
 ):
     rg = default_rng(seed)
     rnd.seed(seed)
@@ -62,21 +69,21 @@ def _sample_one_first_iteration(
 
 
 def sample_particles(
-    seed,
-    simulationBudget,
+    seed: int,
+    simulationBudget: int,
     stopTaskAfterNParticles: Optional[int],
-    modelPrior,
+    modelPrior: np.ndarray,
     models: Tuple[Model],
     priors: Tuple[Prior],
     kdes,
-    sumstats,
-    distance,
-    eps,
-    matchZeros,
-    numZerosData,
-    ssData,
-    systematic,
-    simulatorUsesOldNumpyRNG,
+    sumstats: Optional[Callable[[np.ndarray], np.ndarray]],
+    distance: Callable[[np.ndarray, np.ndarray], float],
+    eps: float,
+    matchZeros: bool,
+    numZerosData: int,
+    ssData: np.ndarray,
+    systematic: bool,
+    simulatorUsesOldNumpyRNG: bool,
 ):
     rg = default_rng(seed)
     rnd.seed(seed)
@@ -132,7 +139,7 @@ def sample_particles(
             ssFake = xFake
 
         if "max_dist" in inspect.signature(distance).parameters:
-            dist = distance(ssData, ssFake, max_dist=eps)
+            dist = distance(ssData, ssFake, max_dist=eps)  # type: ignore
         else:
             dist = distance(ssData, ssFake)
 
@@ -152,26 +159,64 @@ def sample_particles(
 
 
 # Sample a population of particles
-def sample_population(
+def sample_first_population(
     sg,
-    t,
     parallel,
-    modelPrior,
+    modelPrior: np.ndarray,
     models: Tuple[Model],
     priors: Tuple[Prior],
-    prevFit,
-    sumstats,
-    distance,
-    eps,
-    popSize,
-    matchZeros,
-    numZerosData,
-    ssData,
-    recycling,
-    systematic,
-    prevNumSims,
-    strictPopulationSize,
-    simulatorUsesOldNumpyRNG,
+    sumstats: Optional[Callable[[np.ndarray], np.ndarray]],
+    distance: Callable[[np.ndarray, np.ndarray], float],
+    popSize: int,
+    ssData: np.ndarray,
+    simulatorUsesOldNumpyRNG: bool,
+) -> Tuple[Population, int]:
+    samples = []
+    ms = []
+    weights = []
+    dists = []
+    numSims = 0
+
+    sample_first_iteration = joblib.delayed(sample_one_first_iteration)
+    seeds = (s.generate_state(1)[0] for s in sg.spawn(popSize))
+    results = parallel(
+        sample_first_iteration(seed, modelPrior, models, priors, sumstats, distance, ssData, simulatorUsesOldNumpyRNG)
+        for seed in seeds
+    )
+
+    numSims = popSize
+    for i in range(popSize):
+        m, theta, weight, dist, _ = results[i]
+        ms.append(m)
+        samples.append(theta)
+        weights.append(weight)
+        dists.append(dist)
+
+    fit = Population(ms, weights, samples, dists, len(models))
+
+    return fit, numSims
+
+
+# Sample a population of particles
+def sample_population(
+    sg,
+    parallel,
+    modelPrior: np.ndarray,
+    models: Tuple[Model],
+    priors: Tuple[Prior],
+    prevFit: Population,
+    sumstats: Optional[Callable[[np.ndarray], np.ndarray]],
+    distance: Callable[[np.ndarray, np.ndarray], float],
+    eps: float,
+    popSize: int,
+    matchZeros: bool,
+    numZerosData: int,
+    ssData: np.ndarray,
+    recycling: bool,
+    systematic: bool,
+    prevNumSims: int,
+    strictPopulationSize: bool,
+    simulatorUsesOldNumpyRNG: bool,
 ):
     samples = []
     ms = []
@@ -179,94 +224,75 @@ def sample_population(
     dists = []
     numSims = 0
 
-    if t == 0:
-        sample_first_iteration = joblib.delayed(_sample_one_first_iteration)
-        seeds = (s.generate_state(1)[0] for s in sg.spawn(popSize))
+    sample = joblib.delayed(sample_particles)
+
+    kdes = prevFit.fit_kdes()
+
+    if strictPopulationSize:
+        # If we are only going to simulate exactly n particles,
+        # then we create n batches which each simulate one particle
+        # and they just keep going until they get that one particle.
+        numParallelTasks = popSize
+        simulationBudget = np.inf
+        stopTaskAfterNParticles = 1
+    else:
+        # Start by guessing how many simulations will be required
+        # to generate at least n particles at this epsilon threshold.
+        estNumSimsRequired = prevNumSims
+
+        # Split the simulation burden evenly between each of the
+        # CPU processes. Tell each core to give us as many particles
+        # as it can find when given a fixed simulation budget.
+        numParallelTasks = parallel.n_jobs
+        simulationBudget = int(np.ceil(estNumSimsRequired / numParallelTasks))
+        stopTaskAfterNParticles = None
+
+    # bar = tqdm(total=n, position=0, leave=False)
+
+    numParticles = 0
+    while numParticles < popSize:
+        seeds = (s.generate_state(1)[0] for s in sg.spawn(numParallelTasks))
         results = parallel(
-            sample_first_iteration(
-                seed, modelPrior, models, priors, sumstats, distance, ssData, simulatorUsesOldNumpyRNG
+            sample(
+                seed,
+                simulationBudget,
+                stopTaskAfterNParticles,
+                modelPrior,
+                models,
+                priors,
+                kdes,
+                sumstats,
+                distance,
+                eps,
+                matchZeros,
+                numZerosData,
+                ssData,
+                systematic,
+                simulatorUsesOldNumpyRNG,
             )
             for seed in seeds
         )
 
-        numSims = popSize
-        for i in range(popSize):
-            m, theta, weight, dist, _ = results[i]
-            ms.append(m)
-            samples.append(theta)
-            weights.append(weight)
-            dists.append(dist)
+        for particles, simsUsed in results:
+            numSims += simsUsed
+            for particle in particles:
+                m, theta, weight, dist = particle
+                ms.append(m)
+                samples.append(theta)
+                weights.append(weight)
+                dists.append(dist)
 
-    else:
-        sample = joblib.delayed(sample_particles)
+                numParticles += 1
+                # bar.update(1)
 
-        kdes = prevFit.fit_kdes()
-
-        if strictPopulationSize:
-            # If we are only going to simulate exactly n particles,
-            # then we create n batches which each simulate one particle
-            # and they just keep going until they get that one particle.
-            numParallelTasks = popSize
-            simulationBudget = np.inf
-            stopTaskAfterNParticles = 1
-        else:
-            # Start by guessing how many simulations will be required
-            # to generate at least n particles at this epsilon threshold.
-            estNumSimsRequired = prevNumSims
-
-            # Split the simulation burden evenly between each of the
-            # CPU processes. Tell each core to give us as many particles
-            # as it can find when given a fixed simulation budget.
-            numParallelTasks = parallel.n_jobs
+        # If we collect less than n particles, then we can reduce
+        # the simulation budget for the next time around
+        numParticlesLeft = popSize - numParticles
+        if numParticlesLeft > 0 and not strictPopulationSize:
+            estNumSimsRequired = int(np.ceil(1.1 * numParticlesLeft * (numSims / max(numParticles, 1))))
             simulationBudget = int(np.ceil(estNumSimsRequired / numParallelTasks))
-            stopTaskAfterNParticles = None
 
-        # bar = tqdm(total=n, position=0, leave=False)
-
-        numParticles = 0
-        while numParticles < popSize:
-            seeds = (s.generate_state(1)[0] for s in sg.spawn(numParallelTasks))
-            results = parallel(
-                sample(
-                    seed,
-                    simulationBudget,
-                    stopTaskAfterNParticles,
-                    modelPrior,
-                    models,
-                    priors,
-                    kdes,
-                    sumstats,
-                    distance,
-                    eps,
-                    matchZeros,
-                    numZerosData,
-                    ssData,
-                    systematic,
-                    simulatorUsesOldNumpyRNG,
-                )
-                for seed in seeds
-            )
-
-            for particles, simsUsed in results:
-                numSims += simsUsed
-                for particle in particles:
-                    m, theta, weight, dist = particle
-                    ms.append(m)
-                    samples.append(theta)
-                    weights.append(weight)
-                    dists.append(dist)
-
-                    numParticles += 1
-                    # bar.update(1)
-
-            # If we collect less than n particles, then we can reduce
-            # the simulation budget for the next time around
-            numParticlesLeft = popSize - numParticles
-            if numParticlesLeft > 0 and not strictPopulationSize:
-                estNumSimsRequired = 1.1 * numParticlesLeft * (numSims / max(numParticles, 1))
-                simulationBudget = int(np.ceil(estNumSimsRequired / numParallelTasks))
-
-        # bar.close()
+    # bar.close()
 
     fit = Population(ms, weights, samples, dists, len(models))
 
@@ -281,7 +307,7 @@ def validate_obs(obs: np.ndarray) -> np.ndarray:
     return np.asarray(obs, dtype=float).squeeze()
 
 
-def validate_model_prior(modelPrior, M) -> np.ndarray:
+def validate_model_prior(modelPrior: Optional[np.ndarray], M: int) -> np.ndarray:
     if not modelPrior:
         modelPrior = np.ones(M) / M
     return modelPrior
@@ -297,7 +323,7 @@ def validate_distance(
     return sumstats, distance
 
 
-def get_summary_stats(obs, sumstats) -> np.ndarray:
+def get_summary_stats(obs: np.ndarray, sumstats: Optional[Callable[[np.ndarray], np.ndarray]]) -> np.ndarray:
     if sumstats is not None:
         ssData = sumstats(obs)
     else:
@@ -362,7 +388,7 @@ def prepare_next_population(
     return nextFit, eps
 
 
-def print_header(popSize, T, numSumStats, numProcs):
+def print_header(popSize: int, T: int, numSumStats: int, numProcs: int):
     potentialPlural = "processes" if numProcs > 1 else "process"
     print(
         f"Starting ABC-SMC with population size of {popSize} and sample size "
@@ -370,7 +396,9 @@ def print_header(popSize, T, numSumStats, numProcs):
     )
 
 
-def print_update(t, eps, elapsed, numSims, totalSimulationCost, fit, nextFit):
+def print_update(
+    t: int, eps: float, elapsed: float, numSims: int, totalSimulationCost: int, fit: Population, nextFit: Population
+):
     """
     After each sequential Monte Carlo iteration, print out a summary
     of the just-sampled population, and of the subpopulation which was
@@ -400,19 +428,19 @@ def smc(
     priors: Tuple[Prior] | Prior,
     distance=wasserstein,
     sumstats=None,
-    modelPrior=None,
-    numProcs=1,
-    epsMin=0,
-    seed=None,
-    verbose=False,
-    matchZeros=False,
-    recycling=True,
-    systematic=False,
-    strictPopulationSize=False,
-    simulatorUsesOldNumpyRNG=False,
-    showProgressBar=False,
-    plotProgress=False,
-    plotProgressRefLines=None,
+    modelPrior: Optional[np.ndarray] = None,
+    numProcs: int = 1,
+    epsMin: float = 0,
+    seed: Optional[int] = None,
+    verbose: bool = False,
+    matchZeros: bool = False,
+    recycling: bool = True,
+    systematic: bool = False,
+    strictPopulationSize: bool = False,
+    simulatorUsesOldNumpyRNG: bool = False,
+    showProgressBar: bool = False,
+    plotProgress: bool = False,
+    plotProgressRefLines: Optional[Tuple[float]] = None,
 ):
     if numProcs == 1:
         strictPopulationSize = True
@@ -436,8 +464,8 @@ def smc(
     eps = np.inf
 
     # To keep the linter happy, declare some variables as None temporarily
-    numSims = None
-    prevFit = None
+    numSims = cast(int, None)
+    prevFit = cast(Population, None)
 
     with joblib.Parallel(n_jobs=numProcs) as parallel:
         for t in range(0, numIters + 1):
@@ -447,27 +475,40 @@ def smc(
             startTime = time()
 
             try:
-                fit, numSims = sample_population(
-                    sg,
-                    t,
-                    parallel,
-                    modelPrior,
-                    models,
-                    priors,
-                    prevFit,
-                    sumstats,
-                    distance,
-                    eps,
-                    popSize,
-                    matchZeros,
-                    numZerosData,
-                    ssData,
-                    recycling,
-                    systematic,
-                    numSims,
-                    strictPopulationSize,
-                    simulatorUsesOldNumpyRNG,
-                )
+                if t == 0:
+                    fit, numSims = sample_first_population(
+                        sg,
+                        parallel,
+                        modelPrior,
+                        models,
+                        priors,
+                        sumstats,
+                        distance,
+                        popSize,
+                        ssData,
+                        simulatorUsesOldNumpyRNG,
+                    )
+                else:
+                    fit, numSims = sample_population(
+                        sg,
+                        parallel,
+                        modelPrior,
+                        models,
+                        priors,
+                        prevFit,
+                        sumstats,
+                        distance,
+                        eps,
+                        popSize,
+                        matchZeros,
+                        numZerosData,
+                        ssData,
+                        recycling,
+                        systematic,
+                        numSims,
+                        strictPopulationSize,
+                        simulatorUsesOldNumpyRNG,
+                    )
             except KeyboardInterrupt:
                 if t == 0:
                     print("A running approxbayescomp.smc(..) call was cancelled.")
