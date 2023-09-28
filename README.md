@@ -14,10 +14,6 @@ To install simply run
 
 `pip install -U approxbayescomp`
 
-Soon, it will be possible to install using `conda`; at that point the preferred method will be to run
-
-`conda install -c conda-forge approxbayescomp`
-
 ## Example
 
 ### Using a built-in data generating process simulation method
