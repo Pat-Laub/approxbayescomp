@@ -49,7 +49,7 @@ def sample_one_first_iteration(
     seed: int,
     modelPrior: np.ndarray,
     models: list[Model],
-    sumstats: Optional[Callable[[np.ndarray], np.ndarray]],
+    sumstats: Callable[[np.ndarray], np.ndarray],
     distance: Callable[[np.ndarray, np.ndarray], float],
     ssData: np.ndarray,
 ):
@@ -61,15 +61,9 @@ def sample_one_first_iteration(
     # and accept everthing, so the code is a bit simpler.
     m = sample_discrete_dist(modelPrior)
     model = models[m]
-
     theta = model.prior.sample(rg)
-
     xFake = model(theta, rg)  # type: ignore
-
-    if sumstats is not None:
-        dist = distance(ssData, sumstats(xFake))
-    else:
-        dist = distance(ssData, xFake)
+    dist = distance(ssData, sumstats(xFake))
 
     return m, theta, 1.0, dist, 1
 
@@ -81,7 +75,7 @@ def sample_particles(
     modelPrior: np.ndarray,
     models: list[Model],
     kdes,
-    sumstats: Optional[Callable[[np.ndarray], np.ndarray]],
+    sumstats: Callable[[np.ndarray], np.ndarray],
     distance: Callable[[np.ndarray, np.ndarray], float],
     eps: float,
     matchZeros: bool,
@@ -133,15 +127,10 @@ def sample_particles(
         if matchZeros and not np.all(np.sum(xFake == 0, axis=0) == numZerosData):
             continue
 
-        if sumstats is not None:
-            ssFake = sumstats(xFake)
-        else:
-            ssFake = xFake
-
         if "max_dist" in inspect.signature(distance).parameters:
-            dist = distance(ssData, ssFake, max_dist=eps)  # type: ignore
+            dist = distance(ssData, sumstats(xFake), max_dist=eps)  # type: ignore
         else:
-            dist = distance(ssData, ssFake)
+            dist = distance(ssData, sumstats(xFake))
 
         if dist < eps:
             thetaLogWeight = np.log(priorVal) - gaussian_kde_logpdf(
@@ -164,7 +153,7 @@ def sample_first_population(
     parallel,
     modelPrior: np.ndarray,
     models: list[Model],
-    sumstats: Optional[Callable[[np.ndarray], np.ndarray]],
+    sumstats: Callable[[np.ndarray], np.ndarray],
     distance: Callable[[np.ndarray, np.ndarray], float],
     popSize: int,
     ssData: np.ndarray,
@@ -199,7 +188,7 @@ def sample_population(
     modelPrior: np.ndarray,
     models: list[Model],
     prevFit: Population,
-    sumstats: Optional[Callable[[np.ndarray], np.ndarray]],
+    sumstats: Callable[[np.ndarray], np.ndarray],
     distance: Callable[[np.ndarray, np.ndarray], float],
     eps: float,
     popSize: int,
@@ -311,15 +300,10 @@ def validate_distance(
         sumstats = distance[0]
         distance = distance[1]
 
+    if sumstats is None:
+        return (lambda x: x, distance)
+
     return sumstats, distance
-
-
-def get_summary_stats(obs: np.ndarray, sumstats: Optional[Callable[[np.ndarray], np.ndarray]]) -> np.ndarray:
-    if sumstats is not None:
-        ssData = sumstats(obs)
-    else:
-        ssData = obs
-    return ssData
 
 
 def take_best_n_particles(fit: Population, n: int) -> Tuple[Population, float]:
@@ -446,7 +430,7 @@ def smc(
     sumstats, distance = validate_distance(sumstats, distance)  # type: ignore
 
     numZerosData = np.sum(obs == 0, axis=0)
-    ssData = get_summary_stats(obs, sumstats)
+    ssData = sumstats(obs)
 
     sg = SeedSequence(seed)
 
