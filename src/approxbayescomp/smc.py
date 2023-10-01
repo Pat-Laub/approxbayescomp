@@ -8,7 +8,7 @@ import collections
 import inspect
 import warnings
 from time import time
-from typing import Callable, Dict, Optional, Tuple, Union, List, Generator, cast
+from typing import Callable, Optional, Union, Generator, cast
 
 import joblib  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
@@ -62,7 +62,7 @@ def sample_one_first_iteration(
     m = sample_discrete_dist(modelPrior)
     model = models[m]
     theta = model.prior.sample(rg)
-    xFake = model(theta, rg)  # type: ignore
+    xFake = model(theta, rg)
     dist = distance(ssData, sumstats(xFake))
 
     return m, theta, 1.0, dist, 1
@@ -89,9 +89,9 @@ def sample_particles(
 
     if systematic:
         modelGen = index_generator(rg, modelPrior)
-        thetaGens: Dict[int, Generator[int, None, None]] = {}
+        thetaGens: dict[int, Generator[int, None, None]] = {}
 
-    acceptedParticles: List[Tuple[int, Tuple, float, float]] = []
+    acceptedParticles: list[tuple[int, tuple, float, float]] = []
     numAttempts = 0
 
     while numAttempts < simulationBudget:
@@ -157,7 +157,7 @@ def sample_first_population(
     distance: Callable[[np.ndarray, np.ndarray], float],
     popSize: int,
     ssData: np.ndarray,
-) -> Tuple[Population, int]:
+) -> tuple[Population, int]:
     samples = []
     ms = []
     weights = []
@@ -295,7 +295,7 @@ def validate_model_prior(modelPrior: Optional[np.ndarray], M: int) -> np.ndarray
 
 def validate_distance(
     sumstats, distance
-) -> Tuple[Callable[[np.ndarray], np.ndarray], Callable[[np.ndarray, np.ndarray], float]]:
+) -> tuple[Callable[[np.ndarray], np.ndarray], Callable[[np.ndarray, np.ndarray], float]]:
     if isinstance(distance, collections.abc.Sequence):
         sumstats = distance[0]
         distance = distance[1]
@@ -306,7 +306,7 @@ def validate_distance(
     return sumstats, distance
 
 
-def take_best_n_particles(fit: Population, n: int) -> Tuple[Population, float]:
+def take_best_n_particles(fit: Population, n: int) -> tuple[Population, float]:
     """
     Create a subpopulation of particles by selecting the best n particles.
     A particle's quality is assessed by its distance value.
@@ -315,7 +315,7 @@ def take_best_n_particles(fit: Population, n: int) -> Tuple[Population, float]:
     return fit.subpopulation(sortInds[:n]), fit.dists[sortInds[n - 1]]
 
 
-def reduce_population_size(fit: Population, targetESS: float, epsMin: float) -> Tuple[Population, float]:
+def reduce_population_size(fit: Population, targetESS: float, epsMin: float) -> tuple[Population, float]:
     """
     Create a subpopulation of particles by discarding the worst particles until the
     ESS drops to a target value. A particle's quality is assessed by its distance value.
@@ -340,7 +340,7 @@ def reduce_population_size(fit: Population, targetESS: float, epsMin: float) -> 
 
 def prepare_next_population(
     onFinalIteration: bool, popSize: int, epsMin: float, fit: Population
-) -> Tuple[Population, float]:
+) -> tuple[Population, float]:
     """
     After sampling a round in the sequential Monte Carlo algorithm, we
     discard particles in order to create a smaller population which represent
@@ -400,7 +400,7 @@ def smc(
     popSize: int,
     obs: np.ndarray,
     simulators: Union[list[Simulator], Simulator],
-    priors: Union[Tuple[Prior], Prior],
+    priors: Union[tuple[Prior], Prior],
     distance=wasserstein,
     sumstats=None,
     modelPrior: Optional[np.ndarray] = None,
@@ -415,7 +415,7 @@ def smc(
     simulatorUsesOldNumpyRNG: bool = False,
     showProgressBar: bool = False,
     plotProgress: bool = False,
-    plotProgressRefLines: Optional[Tuple[float]] = None,
+    plotProgressRefLines: Optional[tuple[float]] = None,
 ):
     if numProcs == 1:
         strictPopulationSize = True
@@ -427,7 +427,7 @@ def smc(
 
     obs = cast(np.ndarray, validate_obs(obs))
     modelPrior = cast(np.ndarray, validate_model_prior(modelPrior, len(models)))
-    sumstats, distance = validate_distance(sumstats, distance)  # type: ignore
+    sumstats, distance = validate_distance(sumstats, distance)
 
     numZerosData = np.sum(obs == 0, axis=0)
     ssData = sumstats(obs)
@@ -498,7 +498,7 @@ def smc(
             prevFit = nextFit
 
             if plotProgress and len(models) == 1:
-                plot_posteriors(fit, priors[0], refLines=plotProgressRefLines)
+                plot_posteriors(fit, models[0].prior, refLines=plotProgressRefLines)
                 plt.show()
 
             if eps < epsMin:
