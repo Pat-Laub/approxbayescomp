@@ -1,0 +1,6 @@
+name: abc-ci
+channels:
+    - default
+    - conda-forge
+dependencies:
+    - dtaidistance

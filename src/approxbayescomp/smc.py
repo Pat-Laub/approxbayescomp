@@ -8,7 +8,7 @@ import collections
 import inspect
 import warnings
 from time import time
-from typing import Callable, Dict, Optional, Tuple, List, Generator, cast
+from typing import Callable, Dict, Optional, Tuple, Union, List, Generator, cast
 
 import joblib  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
@@ -30,7 +30,7 @@ from .utils import numba_seed, index_generator, gaussian_kde_logpdf, make_iterab
 warnings.filterwarnings("ignore", category=NumbaPerformanceWarning)
 
 # Create a type alias for the model function
-Model = Callable[[np.ndarray], np.ndarray] | Callable[[rnd.Generator, np.ndarray], np.ndarray]
+Model = Union[Callable[[np.ndarray], np.ndarray], Callable[[rnd.Generator, np.ndarray], np.ndarray]]
 
 
 def sample_one_first_iteration(
@@ -424,8 +424,8 @@ def smc(
     numIters: int,
     popSize: int,
     obs: np.ndarray,
-    models: Tuple[Model] | Model,
-    priors: Tuple[Prior] | Prior,
+    models: Union[Tuple[Model], Model],
+    priors: Union[Tuple[Prior], Prior],
     distance=wasserstein,
     sumstats=None,
     modelPrior: Optional[np.ndarray] = None,

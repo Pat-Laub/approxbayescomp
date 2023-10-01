@@ -1,6 +1,6 @@
 [project]
 name = "approxbayescomp"
-version = "0.2.0"
+version = "0.3.0"
 description = "Approximate Bayesian Computation for actuaries"
 readme = "README.md"
 #homepage = "https://github.com/Pat-Laub/approxbayescomp"
@@ -12,7 +12,9 @@ authors = [
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Intended Audience :: Science/Research"
 ]
 #packages = ["approxbayescomp"]
@@ -28,7 +30,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["black", "dtaidistance", "pandas", "pre-commit", "pytest"]
+dev = ["black", "dtaidistance", "flake8", "pandas", "pre-commit", "pytest"]
 
 [build-system]
 requires = ["setuptools", "wheel"]
