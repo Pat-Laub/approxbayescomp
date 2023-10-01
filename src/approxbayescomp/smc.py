@@ -29,19 +29,29 @@ from .utils import numba_seed, index_generator, gaussian_kde_logpdf, make_iterab
 # Suppress a numba.PerformanceWarning
 warnings.filterwarnings("ignore", category=NumbaPerformanceWarning)
 
-# Create a type alias for the model function
-Model = Union[Callable[[np.ndarray], np.ndarray], Callable[[rnd.Generator, np.ndarray], np.ndarray]]
+# Create a type alias for the simulator method
+Simulator = Union[Callable[[np.ndarray], np.ndarray], Callable[[rnd.Generator, np.ndarray], np.ndarray]]
+
+
+class Model:
+    def __init__(self, simulator: Simulator, prior: Prior, simulatorUsesOldNumpyRNG: bool = False):
+        self.simulator = simulator
+        self.prior = prior
+        self.simulatorUsesOldNumpyRNG = simulatorUsesOldNumpyRNG
+
+    def __call__(self, theta, rg=None):
+        if self.simulatorUsesOldNumpyRNG:
+            return self.simulator(theta)
+        return self.simulator(rg, theta)
 
 
 def sample_one_first_iteration(
     seed: int,
     modelPrior: np.ndarray,
-    models: Tuple[Model],
-    priors: Tuple[Prior],
+    models: list[Model],
     sumstats: Optional[Callable[[np.ndarray], np.ndarray]],
     distance: Callable[[np.ndarray, np.ndarray], float],
     ssData: np.ndarray,
-    simulatorUsesOldNumpyRNG: bool,
 ):
     rg = default_rng(seed)
     rnd.seed(seed)
@@ -51,14 +61,10 @@ def sample_one_first_iteration(
     # and accept everthing, so the code is a bit simpler.
     m = sample_discrete_dist(modelPrior)
     model = models[m]
-    prior = priors[m]
 
-    theta = prior.sample(rg)
+    theta = model.prior.sample(rg)
 
-    if simulatorUsesOldNumpyRNG:
-        xFake = model(theta)  # type: ignore
-    else:
-        xFake = model(rg, theta)  # type: ignore
+    xFake = model(theta, rg)  # type: ignore
 
     if sumstats is not None:
         dist = distance(ssData, sumstats(xFake))
@@ -73,8 +79,7 @@ def sample_particles(
     simulationBudget: int,
     stopTaskAfterNParticles: Optional[int],
     modelPrior: np.ndarray,
-    models: Tuple[Model],
-    priors: Tuple[Prior],
+    models: list[Model],
     kdes,
     sumstats: Optional[Callable[[np.ndarray], np.ndarray]],
     distance: Callable[[np.ndarray, np.ndarray], float],
@@ -83,7 +88,6 @@ def sample_particles(
     numZerosData: int,
     ssData: np.ndarray,
     systematic: bool,
-    simulatorUsesOldNumpyRNG: bool,
 ):
     rg = default_rng(seed)
     rnd.seed(seed)
@@ -105,7 +109,6 @@ def sample_particles(
             m = next(modelGen)
 
         model = models[m]
-        prior = priors[m]
         K = kdes[m]
         if K is None:
             continue
@@ -121,14 +124,11 @@ def sample_particles(
 
         theta = sample_multivariate_normal(rg, mu, K.L)
 
-        priorVal = prior.pdf(theta)
+        priorVal = model.prior.pdf(theta)
         if priorVal <= 0:
             continue
 
-        if simulatorUsesOldNumpyRNG:
-            xFake = model(theta)  # type: ignore
-        else:
-            xFake = model(rg, theta)  # type: ignore
+        xFake = model(theta, rg)
 
         if matchZeros and not np.all(np.sum(xFake == 0, axis=0) == numZerosData):
             continue
@@ -163,13 +163,11 @@ def sample_first_population(
     sg,
     parallel,
     modelPrior: np.ndarray,
-    models: Tuple[Model],
-    priors: Tuple[Prior],
+    models: list[Model],
     sumstats: Optional[Callable[[np.ndarray], np.ndarray]],
     distance: Callable[[np.ndarray, np.ndarray], float],
     popSize: int,
     ssData: np.ndarray,
-    simulatorUsesOldNumpyRNG: bool,
 ) -> Tuple[Population, int]:
     samples = []
     ms = []
@@ -179,10 +177,7 @@ def sample_first_population(
 
     sample_first_iteration = joblib.delayed(sample_one_first_iteration)
     seeds = (s.generate_state(1)[0] for s in sg.spawn(popSize))
-    results = parallel(
-        sample_first_iteration(seed, modelPrior, models, priors, sumstats, distance, ssData, simulatorUsesOldNumpyRNG)
-        for seed in seeds
-    )
+    results = parallel(sample_first_iteration(seed, modelPrior, models, sumstats, distance, ssData) for seed in seeds)
 
     numSims = popSize
     for i in range(popSize):
@@ -202,8 +197,7 @@ def sample_population(
     sg,
     parallel,
     modelPrior: np.ndarray,
-    models: Tuple[Model],
-    priors: Tuple[Prior],
+    models: list[Model],
     prevFit: Population,
     sumstats: Optional[Callable[[np.ndarray], np.ndarray]],
     distance: Callable[[np.ndarray, np.ndarray], float],
@@ -216,7 +210,6 @@ def sample_population(
     systematic: bool,
     prevNumSims: int,
     strictPopulationSize: bool,
-    simulatorUsesOldNumpyRNG: bool,
 ):
     samples = []
     ms = []
@@ -259,7 +252,6 @@ def sample_population(
                 stopTaskAfterNParticles,
                 modelPrior,
                 models,
-                priors,
                 kdes,
                 sumstats,
                 distance,
@@ -268,7 +260,6 @@ def sample_population(
                 numZerosData,
                 ssData,
                 systematic,
-                simulatorUsesOldNumpyRNG,
             )
             for seed in seeds
         )
@@ -424,7 +415,7 @@ def smc(
     numIters: int,
     popSize: int,
     obs: np.ndarray,
-    models: Union[Tuple[Model], Model],
+    simulators: Union[list[Simulator], Simulator],
     priors: Union[Tuple[Prior], Prior],
     distance=wasserstein,
     sumstats=None,
@@ -445,8 +436,10 @@ def smc(
     if numProcs == 1:
         strictPopulationSize = True
 
-    models = cast(Tuple[Model], make_iterable(models))
-    priors = cast(Tuple[Prior], make_iterable(priors))
+    models = [
+        Model(simulator, prior, simulatorUsesOldNumpyRNG)
+        for simulator, prior in zip(make_iterable(simulators), make_iterable(priors))
+    ]
 
     obs = cast(np.ndarray, validate_obs(obs))
     modelPrior = cast(np.ndarray, validate_model_prior(modelPrior, len(models)))
@@ -477,16 +470,7 @@ def smc(
             try:
                 if t == 0:
                     fit, numSims = sample_first_population(
-                        sg,
-                        parallel,
-                        modelPrior,
-                        models,
-                        priors,
-                        sumstats,
-                        distance,
-                        popSize,
-                        ssData,
-                        simulatorUsesOldNumpyRNG,
+                        sg, parallel, modelPrior, models, sumstats, distance, popSize, ssData
                     )
                 else:
                     fit, numSims = sample_population(
@@ -494,7 +478,6 @@ def smc(
                         parallel,
                         modelPrior,
                         models,
-                        priors,
                         prevFit,
                         sumstats,
                         distance,
@@ -507,7 +490,6 @@ def smc(
                         systematic,
                         numSims,
                         strictPopulationSize,
-                        simulatorUsesOldNumpyRNG,
                     )
             except KeyboardInterrupt:
                 if t == 0:
