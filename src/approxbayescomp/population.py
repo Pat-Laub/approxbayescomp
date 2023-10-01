@@ -1,7 +1,6 @@
 import numpy as np
-from typing import Optional, Tuple
-
-from .utils import SimpleKDE, kde
+from typing import Optional
+from .kde import SimpleKDE, kde
 
 
 class Population:
@@ -28,10 +27,10 @@ class Population:
     def size(self) -> int:
         return len(self.models)
 
-    def model_sizes(self) -> Tuple[int, ...]:
+    def model_sizes(self) -> tuple[int, ...]:
         return tuple(np.sum(self.models == m) for m in range(self.M))
 
-    def model_weights(self) -> Tuple[float, ...]:
+    def model_weights(self) -> tuple[float, ...]:
         return tuple(np.sum(self.weights[self.models == m]) for m in range(self.M))
 
     def drop_worst_particle(self) -> None:
@@ -63,7 +62,7 @@ class Population:
                 self.samples = self.samples[keep, :]
                 self.dists = self.dists[keep]
 
-    def ess(self) -> Tuple[int, ...]:
+    def ess(self) -> tuple[int, ...]:
         """
         Calculate the effective sample size (ESS) for each model in this population.
         """
@@ -82,7 +81,7 @@ class Population:
         """
         return sum(self.ess())
 
-    def fit_kdes(self) -> Tuple[Optional[SimpleKDE], ...]:
+    def fit_kdes(self) -> tuple[Optional[SimpleKDE], ...]:
         """
         Fit a kernel density estimator (KDE) to each model's subpopulation
         in this population. Return all the KDEs in tuple. If there isn't
@@ -137,3 +136,35 @@ class Population:
         weights = np.concatenate([popWeights[0] * self.weights, popWeights[1] * other.weights])
 
         return Population(ms, weights, samples, dists, self.M)
+
+
+def take_best_n_particles(fit: Population, n: int) -> tuple[Population, float]:
+    """
+    Create a subpopulation of particles by selecting the best n particles.
+    A particle's quality is assessed by its distance value.
+    """
+    sortInds = np.argsort(fit.dists)
+    return fit.subpopulation(sortInds[:n]), fit.dists[sortInds[n - 1]]
+
+
+def reduce_population_size(fit: Population, targetESS: float, epsMin: float) -> tuple[Population, float]:
+    """
+    Create a subpopulation of particles by discarding the worst particles until the
+    ESS drops to a target value. A particle's quality is assessed by its distance value.
+    """
+    fit = fit.clone()
+    totalESS = fit.total_ess()
+    eps = np.max(fit.dists)
+
+    while totalESS > targetESS:
+        fit.drop_worst_particle()
+        eps = np.max(fit.dists)
+        totalESS = fit.total_ess()
+
+        if eps < epsMin:
+            # Don't bother aiming for an even better threshold
+            # if the user is satisfied with epsMin.
+            eps = epsMin
+            break
+
+    return fit, eps
