@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import inspect
 import warnings
+from dataclasses import dataclass
 from time import time
 from typing import Callable, Optional, Union, Generator, cast
 
@@ -42,6 +43,18 @@ warnings.filterwarnings("ignore", category=NumbaPerformanceWarning)
 Simulator = Union[Callable[[np.ndarray], np.ndarray], Callable[[rnd.Generator, np.ndarray], np.ndarray]]
 
 
+@dataclass
+class SamplingConfig:
+    sumstats: Callable[[np.ndarray], np.ndarray]
+    distance: Callable[[np.ndarray, np.ndarray], float]
+    matchZeros: bool
+    numZerosData: int
+    ssData: np.ndarray
+    systematic: bool
+    recycling: bool
+    strictPopulationSize: bool
+
+
 class Model:
     def __init__(self, simulator: Simulator, prior: Prior, simulatorUsesOldNumpyRNG: bool = False):
         self.simulator = simulator
@@ -55,12 +68,7 @@ class Model:
 
 
 def sample_one_first_iteration(
-    seed: int,
-    modelPrior: np.ndarray,
-    models: list[Model],
-    sumstats: Callable[[np.ndarray], np.ndarray],
-    distance: Callable[[np.ndarray, np.ndarray], float],
-    ssData: np.ndarray,
+    seed: int, modelPrior: np.ndarray, models: list[Model], opts: SamplingConfig
 ) -> tuple[int, np.ndarray, float, float, int]:
     rg = default_rng(seed)
     rnd.seed(seed)
@@ -72,31 +80,26 @@ def sample_one_first_iteration(
     model = models[m]
     theta = model.prior.sample(rg)
     xFake = model(theta, rg)
-    dist = distance(ssData, sumstats(xFake))
+    dist = opts.distance(opts.ssData, opts.sumstats(xFake))
 
     return m, theta, 1.0, dist, 1
 
 
 def sample_particles(
     seed: int,
-    simulationBudget: int,
+    simulationBudget: Union[int, float],
     stopTaskAfterNParticles: Optional[int],
     modelPrior: np.ndarray,
     models: list[Model],
     kdes,
-    sumstats: Callable[[np.ndarray], np.ndarray],
-    distance: Callable[[np.ndarray, np.ndarray], float],
     eps: float,
-    matchZeros: bool,
-    numZerosData: int,
-    ssData: np.ndarray,
-    systematic: bool,
-):
+    opts: SamplingConfig,
+) -> tuple[list[tuple[int, tuple, float, float]], int]:
     rg = default_rng(seed)
     rnd.seed(seed)
     numba_seed(seed)
 
-    if systematic:
+    if opts.systematic:
         modelGen = index_generator(rg, modelPrior)
         thetaGens: dict[int, Generator[int, None, None]] = {}
 
@@ -106,7 +109,7 @@ def sample_particles(
     while numAttempts < simulationBudget:
         numAttempts += 1
 
-        if not systematic:
+        if not opts.systematic:
             m = sample_discrete_dist(modelPrior)
         else:
             m = next(modelGen)
@@ -116,7 +119,7 @@ def sample_particles(
         if K is None:
             continue
 
-        if not systematic:
+        if not opts.systematic:
             i = sample_discrete_dist(K.weights)
         else:
             if m not in thetaGens.keys():
@@ -133,13 +136,13 @@ def sample_particles(
 
         xFake = model(theta, rg)
 
-        if matchZeros and not np.all(np.sum(xFake == 0, axis=0) == numZerosData):
+        if opts.matchZeros and not np.all(np.sum(xFake == 0, axis=0) == opts.numZerosData):
             continue
 
-        if "max_dist" in inspect.signature(distance).parameters:
-            dist = distance(ssData, sumstats(xFake), max_dist=eps)  # type: ignore
+        if "max_dist" in inspect.signature(opts.distance).parameters:
+            dist = opts.distance(opts.ssData, opts.sumstats(xFake), max_dist=eps)  # type: ignore
         else:
-            dist = distance(ssData, sumstats(xFake))
+            dist = opts.distance(opts.ssData, opts.sumstats(xFake))
 
         if dist < eps:
             thetaLogWeight = np.log(priorVal) - gaussian_kde_logpdf(
@@ -158,14 +161,7 @@ def sample_particles(
 
 # Sample a population of particles
 def sample_first_population(
-    sg,
-    parallel,
-    modelPrior: np.ndarray,
-    models: list[Model],
-    sumstats: Callable[[np.ndarray], np.ndarray],
-    distance: Callable[[np.ndarray, np.ndarray], float],
-    popSize: int,
-    ssData: np.ndarray,
+    sg, parallel, modelPrior: np.ndarray, models: list[Model], popSize: int, opts: SamplingConfig
 ) -> tuple[Population, int]:
     samples = []
     ms = []
@@ -175,7 +171,7 @@ def sample_first_population(
 
     sample_first_iteration = joblib.delayed(sample_one_first_iteration)
     seeds = (s.generate_state(1)[0] for s in sg.spawn(popSize))
-    results = parallel(sample_first_iteration(seed, modelPrior, models, sumstats, distance, ssData) for seed in seeds)
+    results = parallel(sample_first_iteration(seed, modelPrior, models, opts) for seed in seeds)
 
     numSims = popSize
     for i in range(popSize):
@@ -197,17 +193,10 @@ def sample_population(
     modelPrior: np.ndarray,
     models: list[Model],
     prevFit: Population,
-    sumstats: Callable[[np.ndarray], np.ndarray],
-    distance: Callable[[np.ndarray, np.ndarray], float],
     eps: float,
     popSize: int,
-    matchZeros: bool,
-    numZerosData: int,
-    ssData: np.ndarray,
-    recycling: bool,
-    systematic: bool,
     prevNumSims: int,
-    strictPopulationSize: bool,
+    opts: SamplingConfig,
 ):
     samples = []
     ms = []
@@ -219,7 +208,7 @@ def sample_population(
 
     kdes = prevFit.fit_kdes()
 
-    if strictPopulationSize:
+    if opts.strictPopulationSize:
         # If we are only going to simulate exactly n particles,
         # then we create n batches which each simulate one particle
         # and they just keep going until they get that one particle.
@@ -244,21 +233,7 @@ def sample_population(
     while numParticles < popSize:
         seeds = (s.generate_state(1)[0] for s in sg.spawn(numParallelTasks))
         results = parallel(
-            sample(
-                seed,
-                simulationBudget,
-                stopTaskAfterNParticles,
-                modelPrior,
-                models,
-                kdes,
-                sumstats,
-                distance,
-                eps,
-                matchZeros,
-                numZerosData,
-                ssData,
-                systematic,
-            )
+            sample(seed, simulationBudget, stopTaskAfterNParticles, modelPrior, models, kdes, eps, opts)
             for seed in seeds
         )
 
@@ -277,7 +252,7 @@ def sample_population(
         # If we collect less than n particles, then we can reduce
         # the simulation budget for the next time around
         numParticlesLeft = popSize - numParticles
-        if numParticlesLeft > 0 and not strictPopulationSize:
+        if numParticlesLeft > 0 and not opts.strictPopulationSize:
             estNumSimsRequired = int(np.ceil(1.1 * numParticlesLeft * (numSims / max(numParticles, 1))))
             simulationBudget = int(np.ceil(estNumSimsRequired / numParallelTasks))
 
@@ -286,7 +261,7 @@ def sample_population(
     fit = Population(ms, weights, samples, dists, len(models))
 
     # Combine the previous generation with this one.
-    if recycling and prevFit is not None:
+    if opts.recycling and prevFit is not None:
         fit = fit.combine(prevFit)
 
     return fit, numSims
@@ -366,6 +341,10 @@ def smc(
     numSims = cast(int, None)
     prevFit = cast(Population, None)
 
+    opts = SamplingConfig(
+        sumstats, distance, matchZeros, numZerosData, ssData, systematic, recycling, strictPopulationSize
+    )
+
     with joblib.Parallel(n_jobs=numProcs) as parallel:
         for t in range(0, numIters + 1):
             if showProgressBar and t == 1:
@@ -375,27 +354,10 @@ def smc(
 
             try:
                 if t == 0:
-                    fit, numSims = sample_first_population(
-                        sg, parallel, modelPrior, models, sumstats, distance, popSize, ssData
-                    )
+                    fit, numSims = sample_first_population(sg, parallel, modelPrior, models, popSize, opts)
                 else:
                     fit, numSims = sample_population(
-                        sg,
-                        parallel,
-                        modelPrior,
-                        models,
-                        prevFit,
-                        sumstats,
-                        distance,
-                        eps,
-                        popSize,
-                        matchZeros,
-                        numZerosData,
-                        ssData,
-                        recycling,
-                        systematic,
-                        numSims,
-                        strictPopulationSize,
+                        sg, parallel, modelPrior, models, prevFit, eps, popSize, numSims, opts
                     )
             except KeyboardInterrupt:
                 if t == 0:
