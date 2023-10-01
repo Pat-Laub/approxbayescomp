@@ -4,7 +4,6 @@
 """
 from __future__ import annotations
 
-import collections
 import inspect
 import warnings
 from time import time
@@ -21,10 +20,20 @@ from tqdm.auto import tqdm  # type: ignore
 
 from .distance import wasserstein
 from .plot import plot_posteriors
-from .population import Population
+from .population import Population, take_best_n_particles, reduce_population_size
 from .prior import Prior
 from .simulate import sample_discrete_dist, sample_multivariate_normal
-from .utils import numba_seed, index_generator, gaussian_kde_logpdf, make_iterable
+from .kde import gaussian_kde_logpdf
+from .utils import (
+    index_generator,
+    make_iterable,
+    numba_seed,
+    print_header,
+    print_update,
+    validate_model_prior,
+    validate_obs,
+    validate_distance,
+)
 
 # Suppress a numba.PerformanceWarning
 warnings.filterwarnings("ignore", category=NumbaPerformanceWarning)
@@ -52,7 +61,7 @@ def sample_one_first_iteration(
     sumstats: Callable[[np.ndarray], np.ndarray],
     distance: Callable[[np.ndarray, np.ndarray], float],
     ssData: np.ndarray,
-):
+) -> tuple[int, np.ndarray, float, float, int]:
     rg = default_rng(seed)
     rnd.seed(seed)
     numba_seed(seed)
@@ -283,61 +292,6 @@ def sample_population(
     return fit, numSims
 
 
-def validate_obs(obs: np.ndarray) -> np.ndarray:
-    return np.asarray(obs, dtype=float).squeeze()
-
-
-def validate_model_prior(modelPrior: Optional[np.ndarray], M: int) -> np.ndarray:
-    if not modelPrior:
-        modelPrior = np.ones(M) / M
-    return modelPrior
-
-
-def validate_distance(
-    sumstats, distance
-) -> tuple[Callable[[np.ndarray], np.ndarray], Callable[[np.ndarray, np.ndarray], float]]:
-    if isinstance(distance, collections.abc.Sequence):
-        sumstats = distance[0]
-        distance = distance[1]
-
-    if sumstats is None:
-        return (lambda x: x, distance)
-
-    return sumstats, distance
-
-
-def take_best_n_particles(fit: Population, n: int) -> tuple[Population, float]:
-    """
-    Create a subpopulation of particles by selecting the best n particles.
-    A particle's quality is assessed by its distance value.
-    """
-    sortInds = np.argsort(fit.dists)
-    return fit.subpopulation(sortInds[:n]), fit.dists[sortInds[n - 1]]
-
-
-def reduce_population_size(fit: Population, targetESS: float, epsMin: float) -> tuple[Population, float]:
-    """
-    Create a subpopulation of particles by discarding the worst particles until the
-    ESS drops to a target value. A particle's quality is assessed by its distance value.
-    """
-    fit = fit.clone()
-    totalESS = fit.total_ess()
-    eps = np.max(fit.dists)
-
-    while totalESS > targetESS:
-        fit.drop_worst_particle()
-        eps = np.max(fit.dists)
-        totalESS = fit.total_ess()
-
-        if eps < epsMin:
-            # Don't bother aiming for an even better threshold
-            # if the user is satisfied with epsMin.
-            eps = epsMin
-            break
-
-    return fit, eps
-
-
 def prepare_next_population(
     onFinalIteration: bool, popSize: int, epsMin: float, fit: Population
 ) -> tuple[Population, float]:
@@ -361,38 +315,6 @@ def prepare_next_population(
         nextFit.drop_small_models()
 
     return nextFit, eps
-
-
-def print_header(popSize: int, T: int, numSumStats: int, numProcs: int):
-    potentialPlural = "processes" if numProcs > 1 else "process"
-    print(
-        f"Starting ABC-SMC with population size of {popSize} and sample size "
-        + f"of {T} (~> {numSumStats}) on {numProcs} {potentialPlural}."
-    )
-
-
-def print_update(
-    t: int, eps: float, elapsed: float, numSims: int, totalSimulationCost: int, fit: Population, nextFit: Population
-):
-    """
-    After each sequential Monte Carlo iteration, print out a summary
-    of the just-sampled population, and of the subpopulation which was
-    prepared for the next round.
-    """
-    update = f"Finished SMC iteration {t}, " if t > 0 else "Finished sampling from prior, "
-    update += f"eps = {eps:.2f}, "
-    elapsedMins = np.round(elapsed / 60, 1)
-    update += f"time = {np.round(elapsed)}s / {elapsedMins}m, "
-    update += f"popSize = {fit.size()} -> {nextFit.size()}, "
-    if fit.M > 1:
-        update += f"ESS = {fit.ess()} -> {nextFit.ess()}, "
-    else:
-        update += f"ESS = {fit.ess()[0]} -> {nextFit.ess()[0]}, "
-    update += f"# sims = {numSims}, total # sims = {totalSimulationCost}"
-    if fit.M > 1:
-        update += f"\n\tmodel populations = {fit.model_sizes()}, "
-        update += f"model weights = {np.round(fit.model_weights(), 2)}"
-    print(update)
 
 
 def smc(
