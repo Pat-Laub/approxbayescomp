@@ -30,7 +30,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["black", "dtaidistance", "flake8", "pandas", "pre-commit", "pytest"]
+dev = ["black", "flake8", "pandas", "pre-commit", "pytest"]
 
 [build-system]
 requires = ["setuptools", "wheel"]
