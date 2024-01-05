@@ -10,7 +10,7 @@ While it can handle any general statistical problem, we built in some models so 
 
 To install simply run
 
-`pip install -U approxbayescomp`
+`pip install approxbayescomp`
 
 The source code for the package is available on [Github](https://github.com/Pat-Laub/approxbayescomp).
 
