@@ -83,18 +83,6 @@
     
       <div data-md-color-scheme="default" data-md-component="outdated" hidden>
         
-          <aside class="md-banner md-banner--warning">
-            <div class="md-banner__inner md-grid md-typeset">
-              
-  You're not viewing the latest version.
-  <a href="../..">
-    <strong>Click here to go to latest.</strong>
-  </a>
-
-            </div>
-            <script>var el=document.querySelector("[data-md-component=outdated]"),outdated=__md_get("__outdated",sessionStorage);!0===outdated&&el&&(el.hidden=!1)</script>
-          </aside>
-        
       </div>
     
     
@@ -1012,8 +1000,8 @@ $$</p>
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=c2b66821-125c-47b4-992a-e0d7771ddae6">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=c2b66821-125c-47b4-992a-e0d7771ddae6">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -1040,20 +1028,6 @@ $$</p>
 import approxbayescomp as abc
 import numpy as np
 import numpy.random as rnd</div>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell-outputWrapper">
-<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
-</div>
-<div class="jp-OutputArea jp-Cell-outputArea">
-<div class="jp-OutputArea-child">
-<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="application/vnd.jupyter.stderr" tabindex="0">
-<pre>/Users/plaub/approxbayescomp/venv/lib/python3.11/site-packages/tqdm/auto.py:21: TqdmWarning: IProgress not found. Please update jupyter and ipywidgets. See https://ipywidgets.readthedocs.io/en/stable/user_install.html
-  from .autonotebook import tqdm as notebook_tqdm
-</pre>
 </div>
 </div>
 </div>
@@ -1334,7 +1308,7 @@ prior = abc.IndependentUniformPrior([(0, 2), (0, 50), (0, 50), (0, 100), (0, 100
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [7]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [6]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy for="cell-6">
@@ -1349,11 +1323,11 @@ prior = abc.IndependentUniformPrior([(0, 2), (0, 50), (0, 50), (0, 100), (0, 100
 </div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="n">numIters</span> <span class="o">=</span> <span class="mi">10</span>
 <span class="n">popSize</span> <span class="o">=</span> <span class="mi">250</span>
-<span class="o">%</span><span class="n">time</span> <span class="n">fit</span> <span class="o">=</span> <span class="n">abc</span><span class="o">.</span><span class="n">smc</span><span class="p">(</span><span class="n">numIters</span><span class="p">,</span> <span class="n">popSize</span><span class="p">,</span> <span class="n">xData</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">prior</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="n">abc</span><span class="o">.</span><span class="n">wasserstein2D</span><span class="p">,</span> <span class="n">numProcs</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="o">%</span><span class="n">time</span> <span class="n">fit</span> <span class="o">=</span> <span class="n">abc</span><span class="o">.</span><span class="n">smc</span><span class="p">(</span><span class="n">numIters</span><span class="p">,</span> <span class="n">popSize</span><span class="p">,</span> <span class="n">xData</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">prior</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="n">abc</span><span class="o">.</span><span class="n">wasserstein2D</span><span class="p">,</span> <span class="n">numProcs</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 </pre></div>
 <div class="clipboard-copy-txt" id="cell-6">numIters = 10
 popSize = 250
-%time fit = abc.smc(numIters, popSize, xData, model, prior, distance=abc.wasserstein2D, numProcs=8, seed=1, verbose=True)</div>
+%time fit = abc.smc(numIters, popSize, xData, model, prior, distance=abc.wasserstein2D, numProcs=8, seed=1)</div>
 </div>
 </div>
 </div>
@@ -1365,20 +1339,8 @@ popSize = 250
 <div class="jp-OutputArea-child">
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>Starting ABC-SMC with population size of 250 and sample size of 250 (~&gt; 500) on 8 processes.
-Finished sampling from prior, eps = 2308.21, time = 4.0s / 0.1m, popSize = 250 -&gt; 125, ESS = 250 -&gt; 125, # sims = 250, total # sims = 250
-Finished SMC iteration 1, eps = 680.92, time = 2.0s / 0.0m, popSize = 403 -&gt; 135, ESS = 369 -&gt; 125, # sims = 2248, total # sims = 2498
-Finished SMC iteration 2, eps = 311.83, time = 1.0s / 0.0m, popSize = 402 -&gt; 143, ESS = 340 -&gt; 125, # sims = 4104, total # sims = 6602
-Finished SMC iteration 3, eps = 198.09, time = 2.0s / 0.0m, popSize = 402 -&gt; 156, ESS = 312 -&gt; 125, # sims = 6920, total # sims = 13522
-Finished SMC iteration 4, eps = 137.68, time = 3.0s / 0.1m, popSize = 443 -&gt; 171, ESS = 339 -&gt; 125, # sims = 12808, total # sims = 26330
-Finished SMC iteration 5, eps = 102.23, time = 7.0s / 0.1m, popSize = 422 -&gt; 166, ESS = 315 -&gt; 125, # sims = 23816, total # sims = 50146
-Finished SMC iteration 6, eps = 79.80, time = 11.0s / 0.2m, popSize = 423 -&gt; 159, ESS = 303 -&gt; 125, # sims = 30872, total # sims = 81018
-Finished SMC iteration 7, eps = 64.67, time = 14.0s / 0.2m, popSize = 412 -&gt; 188, ESS = 221 -&gt; 125, # sims = 35272, total # sims = 116290
-Finished SMC iteration 8, eps = 51.62, time = 15.0s / 0.2m, popSize = 456 -&gt; 160, ESS = 294 -&gt; 125, # sims = 35272, total # sims = 151562
-Finished SMC iteration 9, eps = 40.03, time = 15.0s / 0.3m, popSize = 629 -&gt; 158, ESS = 456 -&gt; 125, # sims = 35272, total # sims = 186834
-Finished SMC iteration 10, eps = 35.54, time = 14.0s / 0.2m, popSize = 668 -&gt; 250, ESS = 518 -&gt; 211, # sims = 35272, total # sims = 222106
-CPU times: user 403 ms, sys: 126 ms, total: 529 ms
-Wall time: 1min 28s
+<pre>CPU times: user 397 ms, sys: 126 ms, total: 523 ms
+Wall time: 1min 33s
 </pre>
 </div>
 </div>
@@ -1402,7 +1364,7 @@ Wall time: 1min 28s
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [8]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [7]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy for="cell-7">
@@ -1427,7 +1389,7 @@ Wall time: 1min 28s
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[8]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[7]:</div>
 <div class="jp-RenderedText jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/plain" tabindex="0">
 <pre>35.54484952368373</pre>
 </div>
@@ -1452,7 +1414,7 @@ Wall time: 1min 28s
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [9]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [8]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy for="cell-8">
@@ -1510,7 +1472,7 @@ Wall time: 1min 28s
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [10]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [9]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy for="cell-9">
@@ -1523,9 +1485,9 @@ Wall time: 1min 28s
 </div>
 </clipboard-copy>
 </div>
-<div class="highlight-ipynb hl-python"><pre><span></span><span class="o">%</span><span class="n">time</span> <span class="n">fitMatchZeros</span> <span class="o">=</span> <span class="n">abc</span><span class="o">.</span><span class="n">smc</span><span class="p">(</span><span class="n">numIters</span><span class="p">,</span> <span class="n">popSize</span><span class="p">,</span> <span class="n">xData</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">prior</span><span class="p">,</span> <span class="n">matchZeros</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="n">abc</span><span class="o">.</span><span class="n">wasserstein2D</span><span class="p">,</span> <span class="n">numProcs</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<div class="highlight-ipynb hl-python"><pre><span></span><span class="o">%</span><span class="n">time</span> <span class="n">fitMatchZeros</span> <span class="o">=</span> <span class="n">abc</span><span class="o">.</span><span class="n">smc</span><span class="p">(</span><span class="n">numIters</span><span class="p">,</span> <span class="n">popSize</span><span class="p">,</span> <span class="n">xData</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">prior</span><span class="p">,</span> <span class="n">matchZeros</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="n">abc</span><span class="o">.</span><span class="n">wasserstein2D</span><span class="p">,</span> <span class="n">numProcs</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-9">%time fitMatchZeros = abc.smc(numIters, popSize, xData, model, prior, matchZeros=True, distance=abc.wasserstein2D, numProcs=8, seed=1, verbose=True)</div>
+<div class="clipboard-copy-txt" id="cell-9">%time fitMatchZeros = abc.smc(numIters, popSize, xData, model, prior, matchZeros=True, distance=abc.wasserstein2D, numProcs=8, seed=1)</div>
 </div>
 </div>
 </div>
@@ -1537,20 +1499,8 @@ Wall time: 1min 28s
 <div class="jp-OutputArea-child">
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>Starting ABC-SMC with population size of 250 and sample size of 250 (~&gt; 500) on 8 processes.
-Finished sampling from prior, eps = 2308.21, time = 1.0s / 0.0m, popSize = 250 -&gt; 125, ESS = 250 -&gt; 125, # sims = 250, total # sims = 250
-Finished SMC iteration 1, eps = 803.98, time = 2.0s / 0.0m, popSize = 377 -&gt; 136, ESS = 340 -&gt; 125, # sims = 242088, total # sims = 242338
-Finished SMC iteration 2, eps = 304.74, time = 2.0s / 0.0m, popSize = 410 -&gt; 136, ESS = 373 -&gt; 125, # sims = 242088, total # sims = 484426
-Finished SMC iteration 3, eps = 155.41, time = 3.0s / 0.0m, popSize = 455 -&gt; 142, ESS = 408 -&gt; 125, # sims = 242088, total # sims = 726514
-Finished SMC iteration 4, eps = 86.32, time = 4.0s / 0.1m, popSize = 559 -&gt; 136, ESS = 505 -&gt; 125, # sims = 242088, total # sims = 968602
-Finished SMC iteration 5, eps = 46.57, time = 8.0s / 0.1m, popSize = 1226 -&gt; 134, ESS = 994 -&gt; 125, # sims = 242088, total # sims = 1210690
-Finished SMC iteration 6, eps = 35.65, time = 10.0s / 0.2m, popSize = 1027 -&gt; 149, ESS = 612 -&gt; 125, # sims = 242088, total # sims = 1452778
-Finished SMC iteration 7, eps = 33.03, time = 10.0s / 0.2m, popSize = 406 -&gt; 157, ESS = 307 -&gt; 125, # sims = 242088, total # sims = 1694866
-Finished SMC iteration 8, eps = 31.46, time = 20.0s / 0.3m, popSize = 410 -&gt; 210, ESS = 242 -&gt; 125, # sims = 458216, total # sims = 2153082
-Finished SMC iteration 9, eps = 29.77, time = 37.0s / 0.6m, popSize = 469 -&gt; 157, ESS = 305 -&gt; 125, # sims = 901624, total # sims = 3054706
-Finished SMC iteration 10, eps = 29.12, time = 64.0s / 1.1m, popSize = 408 -&gt; 250, ESS = 295 -&gt; 175, # sims = 1392832, total # sims = 4447538
-CPU times: user 496 ms, sys: 127 ms, total: 623 ms
-Wall time: 2min 40s
+<pre>CPU times: user 464 ms, sys: 102 ms, total: 566 ms
+Wall time: 2min 46s
 </pre>
 </div>
 </div>
@@ -1574,7 +1524,7 @@ Wall time: 2min 40s
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [11]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [10]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy for="cell-10">
@@ -1599,7 +1549,7 @@ Wall time: 2min 40s
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child jp-OutputArea-executeResult">
-<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[11]:</div>
+<div class="jp-OutputPrompt jp-OutputArea-prompt">Out[10]:</div>
 <div class="jp-RenderedText jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/plain" tabindex="0">
 <pre>29.1217535245939</pre>
 </div>
@@ -1624,7 +1574,7 @@ Wall time: 2min 40s
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [12]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [11]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy for="cell-11">
