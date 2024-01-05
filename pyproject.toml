@@ -1,6 +1,6 @@
 [project]
 name = "approxbayescomp"
-version = "0.2.0"
+version = "0.2.1"
 description = "Approximate Bayesian Computation for actuaries"
 readme = "README.md"
 #homepage = "https://github.com/Pat-Laub/approxbayescomp"
@@ -30,7 +30,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["black", "flake8", "pandas", "pre-commit", "pytest"]
+dev = ["black", "build", "flake8", "pandas", "pre-commit", "pytest", "twine"]
 docs = ["ipywidgets", "mike", "mkdocs",  "mkdocs-jupyter", "mkdocs-macros-plugin", "mkdocs-material", "pymc", "seaborn"]
 
 [build-system]

@@ -2,7 +2,7 @@
 """
 @author: Patrick Laub and Pierre-O Goffard
 """
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 from .distance import l1, l2, wasserstein, wasserstein2D, wrap_ss_curve_matching
 from .plot import draw_prior, plot_posteriors, weighted_distplot
