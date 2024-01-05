@@ -12,12 +12,6 @@ To install simply run
 
 `pip install -U approxbayescomp`
 
-<!--
-Soon, it will be possible to install using `conda`; at that point the preferred method will be to run
-
-`conda install -c conda-forge approxbayescomp`
--->
-
 The source code for the package is available on [Github](https://github.com/Pat-Laub/approxbayescomp).
 
 ## Example
@@ -26,9 +20,7 @@ The source code for the package is available on [Github](https://github.com/Pat-
 
 Consider a basic insurance example where each month our insurance company receives a random number of claims, each of which is of a random size.
 Specifically, say that in month $i$ we have $N_i \sim \mathsf{Poisson}(\lambda)$ i.i.d. number of claims, and each claim is $U_{i,j} \sim \mathsf{Lognormal}(\mu, \sigma^2)$ sized and i.i.d.
-<!-- In other words, $\log(U_{i,j}) \sim \mathsf{Normal}(\mu, \sigma^2)$. -->
-At each month we can observe the aggregate claims, that is,
-\( X_i = \sum_{j=1}^{N_i} U_{i,j} \)
+At each month we can observe the aggregate claims, that is, $X_i = \sum_{j=1}^{N_i} U_{i,j}$
 for $i=1,\dots,T$, that is, we observe $T$ months of data.
 Lastly, we have the prior beliefs that $\lambda \sim \mathsf{Unif}(0, 100),$ $\mu \sim \mathsf{Unif}(-5, 5),$ and $\sigma \sim \mathsf{Unif}(0, 3).$
 
@@ -42,17 +34,18 @@ Then `fit` will contain a collection of weighted samples from the approximate po
 The _posterior mean_ for these parameters would be easily calculated:
 
 ``` python
+import numpy as np
 print("Posterior mean of lambda: ", np.sum(fit.samples[:, 0] * fit.weights))
 print("Posterior mean of mu: ", np.sum(fit.samples[:, 1] * fit.weights))
 print("Posterior mean of sigma: ", np.sum(fit.samples[:, 2] * fit.weights))
 ```
 
-### Using a user-suppled simulation method <img src="new-emoji.svg" class="twemoji">
+### Using a user-suppled simulation method
 
 We have built many standard insurance loss models into the package, so in the previous example
 
 ```python
-model = abc.Model("poisson", "lognormal", abc.Psi("sum"), prior)
+model = abc.Model("poisson", "lognormal", abc.Psi("sum"))
 ```
 
 is all that is required to specify this data-generating process.
@@ -60,7 +53,6 @@ However, for non-insurance processes, we have to supply a function to simulate f
 The equivalent version for this example would be:
 
 ```python
-import numpy as np
 import numpy.random as rnd
 
 def simulate_aggregate_claims(theta, T):
@@ -74,8 +66,8 @@ def simulate_aggregate_claims(theta, T):
         aggClaims[t] = np.sum(rnd.lognormal(mu, sigma, size=freqs[t]))
     return aggClaims
 
-def model(theta):
-    return simulate_aggregate_claims(theta, len(obsData)) 
+simulator = lambda theta: simulate_aggregate_claims(theta, len(obsData))
+fit = abc.smc(numIters, popSize, obsData, simulator, prior)
 ```
 
 Modifying just these lines will generate the identical output as the example above.
