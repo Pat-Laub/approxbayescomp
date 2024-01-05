@@ -32,7 +32,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           conda install flake8 pytest numpy pandas
-          conda install -c conda-forge dtaidistance
           pip install .
           if [ -f requirements.yml ]; then conda env update --file environment.yml --name base; fi
       - name: Lint with flake8

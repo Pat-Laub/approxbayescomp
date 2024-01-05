@@ -3,7 +3,7 @@ import numpy as np
 import numpy.random as rnd
 import pandas as pd
 import scipy.stats as st
-from dtaidistance import dtw
+from dtw import dtw_distance
 from numba import float64, int64, njit
 
 
@@ -228,7 +228,7 @@ def test_dynamic_time_warping():
         xData,
         model,
         prior,
-        distance=dtw.distance,
+        distance=dtw_distance,
         epsMin=epsMin,
         verbose=True,
         seed=1,
