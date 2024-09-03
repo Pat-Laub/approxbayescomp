@@ -303,6 +303,7 @@ def smc(
     modelPrior: Optional[np.ndarray] = None,
     numProcs: int = 1,
     epsMin: float = 0,
+    minEpsImprovement: float = 1e-4,
     seed: Optional[int] = None,
     verbose: bool = False,
     matchZeros: bool = False,
@@ -336,6 +337,7 @@ def smc(
 
     totalSimulationCost = 0
     eps = np.inf
+    prevEps = np.inf
 
     # To keep the linter happy, declare some variables as None temporarily
     numSims = cast(int, None)
@@ -377,6 +379,18 @@ def smc(
 
             if verbose:
                 print_update(t, eps, elapsed, numSims, totalSimulationCost, fit, nextFit)
+
+            # Check for relative improvement in epsilon
+            if t > 0:
+                relativeImprovement = (prevEps - eps) / prevEps if prevEps > 0 else 0
+                if relativeImprovement < minEpsImprovement:
+                    if verbose:
+                        print(
+                            f"Stopping now due to marginal relative improvement in epsilon: {relativeImprovement:.6f}"
+                        )
+                    break
+
+            prevEps = eps
 
             fit = nextFit
             prevFit = nextFit
