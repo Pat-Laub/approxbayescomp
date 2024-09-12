@@ -56,15 +56,16 @@ class SamplingConfig:
 
 
 class Model:
-    def __init__(self, simulator: Simulator, prior: Prior, simulatorUsesOldNumpyRNG: bool = False):
+    def __init__(self, simulator: Simulator, prior: Prior):
         self.simulator = simulator
         self.prior = prior
-        self.simulatorUsesOldNumpyRNG = simulatorUsesOldNumpyRNG
+        # Does the simulator use the new numpy random number generator methods?
+        self.new_rng = "rg" in inspect.signature(simulator).parameters
 
     def __call__(self, theta, rg=None):
-        if self.simulatorUsesOldNumpyRNG:
-            return self.simulator(theta)
-        return self.simulator(rg, theta)
+        if self.new_rng:
+            return self.simulator(rg, theta)
+        return self.simulator(theta)
 
 
 def sample_one_first_iteration(
@@ -310,7 +311,6 @@ def smc(
     recycling: bool = True,
     systematic: bool = False,
     strictPopulationSize: bool = False,
-    simulatorUsesOldNumpyRNG: bool = False,
     showProgressBar: bool = False,
     plotProgress: bool = False,
     plotProgressRefLines: Optional[tuple[float]] = None,
@@ -318,10 +318,7 @@ def smc(
     if numProcs == 1:
         strictPopulationSize = True
 
-    models = [
-        Model(simulator, prior, simulatorUsesOldNumpyRNG)
-        for simulator, prior in zip(make_iterable(simulators), make_iterable(priors))
-    ]
+    models = [Model(simulator, prior) for simulator, prior in zip(make_iterable(simulators), make_iterable(priors))]
 
     obs = cast(np.ndarray, validate_obs(obs))
     modelPrior = cast(np.ndarray, validate_model_prior(modelPrior, len(models)))

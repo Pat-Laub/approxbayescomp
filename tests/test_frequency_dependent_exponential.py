@@ -106,9 +106,7 @@ def test_partially_observed_model():
     model = simulate_dependent_exponential_sums
 
     epsMin = 3
-    fit = abc.smc(
-        numItersData, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1, simulatorUsesOldNumpyRNG=False
-    )
+    fit = abc.smc(numItersData, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, prior.dim)
 
 
@@ -145,9 +143,7 @@ def test_simulator_with_new_rng():
     def model(rg, theta):
         return simulate_dependent_poisson_exponential_sums_new_rng(rg, theta, len(xData))
 
-    fit = abc.smc(
-        numIters, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1, simulatorUsesOldNumpyRNG=False
-    )
+    fit = abc.smc(numIters, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, prior.dim)
 
 
@@ -157,9 +153,7 @@ def test_simulator_with_old_rng():
     def model(theta):
         return simulate_dependent_poisson_exponential_sums_old_rng(theta, len(xData))
 
-    fit = abc.smc(
-        numIters, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1, simulatorUsesOldNumpyRNG=True
-    )
+    fit = abc.smc(numIters, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, prior.dim)
 
 
@@ -211,18 +205,7 @@ def test_dynamic_time_warping():
         return simulate_dependent_poisson_exponential_sums_old_rng(theta, len(xData))
 
     epsMin = 150
-    fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        model,
-        prior,
-        distance=dtw_distance,
-        epsMin=epsMin,
-        verbose=True,
-        seed=1,
-        simulatorUsesOldNumpyRNG=True,
-    )
+    fit = abc.smc(numIters, popSize, xData, model, prior, distance=dtw_distance, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, prior.dim)
 
 

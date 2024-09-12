@@ -176,9 +176,7 @@ def test_simulator_with_new_rng():
 
     models = (model1, model2)
 
-    fit = abc.smc(
-        numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1, simulatorUsesOldNumpyRNG=False
-    )
+    fit = abc.smc(numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin)
 
 
@@ -193,9 +191,7 @@ def test_simulator_with_old_rng():
 
     models = (model1, model2)
 
-    fit = abc.smc(
-        numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1, simulatorUsesOldNumpyRNG=True
-    )
+    fit = abc.smc(numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin)
 
 
@@ -238,18 +234,7 @@ def test_dynamic_time_warping():
     models = (model1, model2)
 
     epsMin = 5
-    fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        models,
-        priors,
-        distance=dtw_distance,
-        epsMin=epsMin,
-        verbose=True,
-        seed=1,
-        simulatorUsesOldNumpyRNG=True,
-    )
+    fit = abc.smc(numIters, popSize, xData, models, priors, distance=dtw_distance, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin)
 
 
