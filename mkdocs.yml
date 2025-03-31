@@ -61,3 +61,6 @@ extra_css:
 extra:
   version:
     provider: mike
+  analytics:
+    provider: google
+    property: G-7TB89BEQTR
