@@ -1,0 +1,40 @@
+name: Lint and test approxbayescomp
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: ["*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the approxbayescomp package
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[dev]
+
+      - name: flake8 - strict errors only
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: flake8 - all warnings (ignored errors)
+        run: |
+          flake8 . --count --exit-zero --ignore=E203,E266,E501,W503,F403,F401,E402 --statistics
+
+      - name: Run pytest
+        run: |
+          pytest
