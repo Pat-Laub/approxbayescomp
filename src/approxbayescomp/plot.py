@@ -109,6 +109,9 @@ def plot_posteriors(
     if removeYAxis is None:
         removeYAxis = numThetas > 4
 
+    if numThetas == 1:
+        axs = [axs]
+    
     if len(subtitles) == 0 and prior.names is not None:
         subtitles = prior.names
 
