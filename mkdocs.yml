@@ -52,6 +52,7 @@ markdown_extensions:
   - md_in_html
 
 extra_javascript:
+  - assets/setup-mathjax.js
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js
 
 extra_css:
