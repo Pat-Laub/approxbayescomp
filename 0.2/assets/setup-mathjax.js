@@ -8,9 +8,15 @@ window.MathJax = {
   options: {
     ignoreHtmlClass: ".*|",
     processHtmlClass: "arithmatex"
+  },
+  startup: {
+    ready: () => {
+      MathJax.startup.defaultReady();
+      MathJax.startup.promise.then(() => {
+        document$.subscribe(() => {
+          MathJax.typesetPromise()
+        })
+      });
+    }
   }
 };
-
-document$.subscribe(() => {
-  MathJax.typesetPromise()
-})
