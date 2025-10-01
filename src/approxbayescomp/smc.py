@@ -24,7 +24,7 @@ from .plot import plot_posteriors
 from .population import Population
 from .psi import Psi, _compute_psi, compute_psi
 from .simulate import sample_discrete_dist, sample_multivariate_normal, simulate_claim_data
-from .utils import *
+from .utils import gaussian_kde_logpdf, index_generator, numba_seed
 
 # Suppress a numba.PerformanceWarning
 warnings.filterwarnings("ignore", category=NumbaPerformanceWarning)
@@ -47,9 +47,9 @@ def _sample_one_first_iteration(
 
     theta = prior.sample(rg)
 
-    if type(model) == Model:
+    if isinstance(model, Model):
         claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta)
-        if type(model.freq) == str and model.freq.startswith("bivariate"):
+        if isinstance(model.freq, str) and model.freq.startswith("bivariate"):
             xFake1 = _compute_psi(claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param)
             xFake2 = _compute_psi(claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param)
 
@@ -128,9 +128,9 @@ def sample_particles(
         if priorVal <= 0:
             continue
 
-        if type(model) == Model:
+        if isinstance(model, Model):
             claimsFake = simulate_claim_data(rg, T, model.freq, model.sev, theta)
-            if type(model.freq) == str and model.freq.startswith("bivariate"):
+            if isinstance(model.freq, str) and model.freq.startswith("bivariate"):
                 xFake1 = _compute_psi(claimsFake[0][0], claimsFake[0][1], model.psi.name, model.psi.param)
                 xFake2 = _compute_psi(claimsFake[1][0], claimsFake[1][1], model.psi.name, model.psi.param)
                 xFake = np.vstack([xFake1, xFake2]).T
@@ -299,7 +299,7 @@ def smc_setup(obs, modelPrior, models, priors, sumstats, distance):
     obs = np.asarray(obs, dtype=float).squeeze()
     T = obs.shape[0]
 
-    if type(models) == Model or callable(models):
+    if isinstance(models, Model) or callable(models):
         modelPrior = np.array([1.0])
         models = [models]
         priors = [priors]
@@ -327,7 +327,7 @@ def smc_setup(obs, modelPrior, models, priors, sumstats, distance):
 
     newModels = []
     for model in models:
-        if type(model) == Model:
+        if isinstance(model, Model):
             if model.psi:
                 newPsi = model.psi
             else:
