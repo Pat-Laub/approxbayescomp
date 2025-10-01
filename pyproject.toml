@@ -28,7 +28,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["black", "build", "flake8", "pandas", "pre-commit", "pytest", "twine"]
-docs = ["ipywidgets", "mike", "mkdocs",  "mkdocs-jupyter", "mkdocs-macros-plugin", "mkdocs-material", "pymc", "seaborn"]
+docs = ["ipywidgets", "mike", "mkdocs",  "mkdocs-jupyter", "mkdocs-macros-plugin", "mkdocs-material", "mkdocstrings[python]", "pymc", "seaborn"]
 
 [build-system]
 requires = ["setuptools", "wheel"]

@@ -8,6 +8,15 @@ nav:
       - Frequency-Dependent Claim Sizes: frequency-dependent-claim-sizes.ipynb
       - Bivariate Observations: bivariate-observations.ipynb
       - Seasonal Claim Arrivals: seasonal-claim-arrivals.ipynb
+  - API Reference:
+      - Overview: api/index.md
+      - SMC: api/smc.md
+      - Prior: api/prior.md
+      - Distance: api/distance.md
+      - Simulate: api/simulate.md
+      - Plotting: api/plot.md
+      - Weighted Statistics: api/weighted.md
+      - Utilities: api/utils.md
 
 theme:
   name: material
@@ -34,6 +43,15 @@ plugins:
       ignore_h1_titles: False
       include_source: True
   - macros
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: numpy
+            show_source: true
+            show_root_heading: true
+            show_category_heading: true
 
 markdown_extensions:
   - pymdownx.arithmatex:

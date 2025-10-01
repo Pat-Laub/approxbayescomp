@@ -451,6 +451,77 @@ def smc(
     plotProgress=False,
     plotProgressRefLines=None,
 ):
+    """
+    Run Sequential Monte Carlo Approximate Bayesian Computation (SMC-ABC).
+
+    This function implements the SMC-ABC algorithm for parameter inference and model selection.
+    It iteratively samples from the posterior distribution by adaptively decreasing the
+    tolerance threshold epsilon over multiple iterations.
+
+    Parameters
+    ----------
+    numIters : int
+        Number of SMC iterations to perform. More iterations allow for tighter tolerances
+        and better approximations of the posterior.
+    popSize : int
+        Size of the particle population at each iteration.
+    obs : array_like or tuple
+        Observed data. Can be a single array or a tuple of arrays for bivariate observations.
+    models : list or callable
+        List of simulator functions (for model selection) or a single simulator function.
+        Each simulator should take parameters and return simulated data.
+    priors : list or Prior
+        List of prior distributions (one per model) or a single prior distribution.
+        Should be instances of IndependentPrior or IndependentUniformPrior.
+    distance : callable, optional
+        Distance function to compare observed and simulated data. Default is wasserstein.
+        Should take two arguments (obs, sim) and return a scalar distance.
+    sumstats : callable, optional
+        Summary statistics function to reduce data dimensionality. If None, raw data is used.
+        Should take data and return summary statistics array.
+    modelPrior : array_like, optional
+        Prior probabilities for each model (for model selection). If None, uniform prior is used.
+    numProcs : int, optional
+        Number of parallel processes to use. Default is 1 (sequential).
+    epsMin : float, optional
+        Minimum tolerance threshold. Algorithm stops when epsilon reaches this value. Default is 0.
+    seed : int, optional
+        Random seed for reproducibility. If None, random seed is used.
+    verbose : bool, optional
+        If True, print detailed progress information. Default is False.
+    matchZeros : bool, optional
+        If True, reject simulations that don't match zero counts in observed data. Default is False.
+    recycling : bool, optional
+        If True, use particle recycling to improve efficiency. Keeps particles from the
+        previous iteration that still pass the current tolerance, combined with newly
+        sampled particles. Default is True.
+    systematic : bool, optional
+        If True, use systematic sampling for particle proposals. Default is False.
+    strictPopulationSize : bool, optional
+        If True, ensure exact population size (automatically True when numProcs=1). Default is False.
+    simulatorUsesOldNumpyRNG : bool, optional
+        If True, simulator uses legacy numpy.random functions. If False, uses new Generator API.
+        Default is True.
+    showProgressBar : bool, optional
+        If True, display a progress bar during execution. Default is False.
+    plotProgress : bool, optional
+        If True, plot posterior distributions after each iteration. Default is False.
+    plotProgressRefLines : dict, optional
+        Reference lines to add to progress plots. Only used if plotProgress is True.
+
+    Returns
+    -------
+    Population
+        Final population object containing particles, weights, and other information about
+        the approximated posterior distribution.
+
+    Examples
+    --------
+    >>> from approxbayescomp import smc, IndependentUniformPrior
+    >>> prior = IndependentUniformPrior([(0, 10), (0, 5)])
+    >>> result = smc(numIters=5, popSize=1000, obs=observed_data,
+    ...              models=[simulator], priors=[prior])
+    """
     if numProcs == 1:
         strictPopulationSize = True
 
