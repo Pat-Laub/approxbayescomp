@@ -440,6 +440,7 @@ def smc(
     modelPrior=None,
     numProcs=1,
     epsMin=0,
+    epsDiffMin=np.inf,
     seed=None,
     verbose=False,
     matchZeros=False,
@@ -450,6 +451,7 @@ def smc(
     showProgressBar=False,
     plotProgress=False,
     plotProgressRefLines=None,
+    return_all_fit_samples=False,
 ):
     """
     Run Sequential Monte Carlo Approximate Bayesian Computation (SMC-ABC).
@@ -485,6 +487,10 @@ def smc(
         Number of parallel processes to use. Default is 1 (sequential).
     epsMin : float, optional
         Minimum tolerance threshold. Algorithm stops when epsilon reaches this value. Default is 0.
+    epsDiffMin : float, optional
+        Minimum difference in epsilon between iterations. Algorithm stops when the difference
+        between the previous epsilon and current epsilon is less than this value. Default is np.inf
+        (i.e., this stopping criterion is disabled by default).
     seed : int, optional
         Random seed for reproducibility. If None, random seed is used.
     verbose : bool, optional
@@ -508,12 +514,17 @@ def smc(
         If True, plot posterior distributions after each iteration. Default is False.
     plotProgressRefLines : dict, optional
         Reference lines to add to progress plots. Only used if plotProgress is True.
+    return_all_fit_samples : bool, optional
+        If True, return a tuple of (final_population, all_fit_samples_dict) where all_fit_samples_dict
+        contains the samples from each iteration indexed by iteration number. Default is False.
 
     Returns
     -------
-    Population
-        Final population object containing particles, weights, and other information about
-        the approximated posterior distribution.
+    Population or tuple
+        If return_all_fit_samples is False: Final population object containing particles, weights,
+        and other information about the approximated posterior distribution.
+        If return_all_fit_samples is True: Tuple of (final_population, all_fit_samples_dict) where
+        all_fit_samples_dict is a dictionary mapping iteration numbers to sample arrays.
 
     Examples
     --------
@@ -529,6 +540,7 @@ def smc(
         obs, modelPrior, models, priors, sumstats, distance
     )
 
+    all_fit_samples = {}
     sg = SeedSequence(seed)
 
     if verbose:
@@ -540,6 +552,8 @@ def smc(
     # To keep the linter happy, declare some variables as None temporarily
     numSims = None
     prevFit = None
+
+    prevEps = np.inf
 
     with joblib.Parallel(n_jobs=numProcs) as parallel:
         for t in range(0, numIters + 1):
@@ -592,15 +606,17 @@ def smc(
 
             fit = nextFit
             prevFit = nextFit
+            all_fit_samples[t] = fit.samples
 
             if plotProgress and len(models) == 1:
                 plot_posteriors(fit, priors[0], refLines=plotProgressRefLines)
                 plt.show()
 
-            if eps < epsMin:
+            if (eps < epsMin) & (prevEps - eps < epsDiffMin):
                 if verbose:
                     print("Stopping now due to exceeding epsilon target.")
                 break
+            prevEps = eps
 
             if showProgressBar and t > 0:
                 bar.update(1)
@@ -608,4 +624,7 @@ def smc(
     if showProgressBar:
         bar.close()
 
-    return fit
+    if return_all_fit_samples:
+        return fit, all_fit_samples
+    else:
+        return fit
