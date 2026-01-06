@@ -123,9 +123,7 @@ def test_partially_observed_model():
     prior = abc.IndependentUniformPrior([(0, 20)], ("μ"))
 
     epsMin = 0.1
-    fit = abc.smc(
-        numItersData, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1
-    )
+    fit = abc.smc(numItersData, popSize, xData, model, prior, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin, 1)
 
 
@@ -138,17 +136,13 @@ def test_full_model():
 def test_eps_min():
     # Check that it will stop after reaching the epsilon target.
     print("\ntest_eps_min()\n")
-    fit = abc.smc(
-        numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1
-    )
+    fit = abc.smc(numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin)
 
 
 def test_match_zeros():
     print("\ntest_match_zeros()\n")
-    fit = abc.smc(
-        numIters, popSize, xData, models, priors, matchZeros=True, verbose=True, seed=1
-    )
+    fit = abc.smc(numIters, popSize, xData, models, priors, matchZeros=True, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin)
 
 
@@ -164,15 +158,7 @@ def test_simulator_with_new_rng():
     models = (model1, model2)
 
     fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        models,
-        priors,
-        epsMin=epsMin,
-        verbose=True,
-        seed=1,
-        simulatorUsesOldNumpyRNG=False,
+        numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1, simulatorUsesOldNumpyRNG=False
     )
     check_fit(fit, popSize, epsMin)
 
@@ -188,9 +174,7 @@ def test_simulator_with_old_rng():
 
     models = (model1, model2)
 
-    fit = abc.smc(
-        numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1
-    )
+    fit = abc.smc(numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin)
 
 
@@ -198,17 +182,7 @@ def test_multiple_processes():
     print("\ntest_multiple_processes()\n")
     numProcs = 4
 
-    fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        models,
-        priors,
-        numProcs=numProcs,
-        epsMin=epsMin,
-        verbose=True,
-        seed=1,
-    )
+    fit = abc.smc(numIters, popSize, xData, models, priors, numProcs=numProcs, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin)
 
 
@@ -243,18 +217,61 @@ def test_dynamic_time_warping():
     models = (model1, model2)
 
     epsMin = 5
-    fit = abc.smc(
-        numIters,
-        popSize,
-        xData,
-        models,
-        priors,
-        distance=dtw_distance,
-        epsMin=epsMin,
-        verbose=True,
-        seed=1,
-    )
+    fit = abc.smc(numIters, popSize, xData, models, priors, distance=dtw_distance, epsMin=epsMin, verbose=True, seed=1)
     check_fit(fit, popSize, epsMin)
+
+
+def test_eps_diff_min():
+    # Check that algorithm stops when epsilon changes are small
+    print("\ntest_eps_diff_min()\n")
+
+    # Set epsDiffMin to a value that should trigger early stopping
+    epsDiffMin = 0.01
+    fit = abc.smc(numIters, popSize, xData, models, priors, epsDiffMin=epsDiffMin, verbose=True, seed=1)
+
+    # The fit should be valid (using a relaxed epsMin since we're stopping based on diff)
+    assert fit.models.shape == (popSize,)
+    assert fit.weights.shape == (popSize,)
+    assert fit.samples.shape == (popSize, 2)
+    assert fit.dists.shape == (popSize,)
+    assert np.all((fit.models == 0) + (fit.models == 1))
+    assert np.abs(np.sum(fit.weights) - 1) < 1e-5
+
+
+def test_return_all_fit_samples():
+    # Check that return_all_fit_samples returns both final population and all samples
+    print("\ntest_return_all_fit_samples()\n")
+
+    fit, all_fit_samples = abc.smc(
+        numIters, popSize, xData, models, priors, epsMin=epsMin, verbose=True, seed=1, return_all_fit_samples=True
+    )
+
+    # Check that fit is valid
+    check_fit(fit, popSize, epsMin)
+
+    # Check that all_fit_samples is a dictionary
+    assert isinstance(all_fit_samples, dict)
+
+    # Check that we have samples for iteration 0 and subsequent iterations
+    assert 0 in all_fit_samples
+    assert len(all_fit_samples) > 0
+
+    # Check that each iteration has samples with correct shape
+    # The population size can vary between iterations, so we check that:
+    # 1. Each has 2D shape (n_samples, n_parameters)
+    # 2. Number of parameters is correct
+    for iteration, samples in all_fit_samples.items():
+        assert isinstance(iteration, (int, np.integer))
+        assert samples.ndim == 2
+        assert samples.shape[1] == 2  # numTheta for this test case
+        assert samples.shape[0] > 0  # At least some samples
+
+    # The final iteration samples should match the fit.samples
+    final_iteration = max(all_fit_samples.keys())
+    assert np.allclose(all_fit_samples[final_iteration], fit.samples)
+
+    # The final iteration should have the target population size
+    assert all_fit_samples[final_iteration].shape[0] == popSize
 
 
 if __name__ == "__main__":
@@ -267,3 +284,5 @@ if __name__ == "__main__":
     test_multiple_processes()
     test_strict_population_size()
     test_dynamic_time_warping()
+    test_eps_diff_min()
+    test_return_all_fit_samples()
